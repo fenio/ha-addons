@@ -8,7 +8,7 @@ Home Assistant add-on repository containing Unbound DNS resolver.
 
 ### [Unbound DNS](./unbound)
 
-![Version](https://img.shields.io/badge/version-0.0.5-blue.svg)
+![Version](https://img.shields.io/badge/version-0.0.6-blue.svg)
 
 A recursive DNS resolver using Unbound with support for:
 - Local DNS records
@@ -25,7 +25,7 @@ A recursive DNS resolver using Unbound with support for:
 2. Or manually add the repository URL in Home Assistant:
    - Go to **Settings** > **Add-ons** > **Add-on Store**
    - Click **⋮** (three dots) > **Repositories**
-   - Add: `https://github.com/fenio/ha-unbound-addon`
+   - Add: `https://github.com/fenio/ha-addons`
    - Click **Add** and **Close**
 
 3. Refresh the add-on store and find "Unbound DNS" to install
