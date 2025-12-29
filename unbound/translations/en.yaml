@@ -1,0 +1,83 @@
+configuration:
+  # Network settings
+  access_control:
+    name: Access Control
+    description: List of IP ranges allowed to query the DNS server (CIDR notation, e.g., 192.168.0.0/16)
+
+  # Performance settings
+  num_threads:
+    name: Number of Threads
+    description: Number of threads to use for processing DNS queries. Match this to the number of CPU cores for optimal performance.
+  prefetch:
+    name: Prefetch Cache
+    description: Prefetch popular cached entries before they expire, reducing latency for frequently accessed domains.
+  fast_server_permil:
+    name: Fast Server Selection (per mille)
+    description: Percentage (in per mille, 0-1000) of how often to use the fastest server. Higher values prefer speed over load balancing.
+  fast_server_num:
+    name: Fast Server Count
+    description: Number of fastest servers to track and prefer when fast server selection is enabled.
+
+  # IP version preferences
+  prefer_ip4:
+    name: Prefer IPv4
+    description: Prefer IPv4 addresses over IPv6 when resolving DNS queries.
+  do_ip4:
+    name: Enable IPv4
+    description: Enable IPv4 for outgoing DNS queries to upstream servers.
+  do_ip6:
+    name: Enable IPv6
+    description: Enable IPv6 for outgoing DNS queries to upstream servers.
+
+  # Cache settings
+  cache_min_ttl:
+    name: Minimum Cache TTL (seconds)
+    description: Minimum time-to-live for cached DNS records. Increase this to reduce upstream queries but may serve stale data.
+  cache_max_ttl:
+    name: Maximum Cache TTL (seconds)
+    description: Maximum time-to-live for cached DNS records. Limits how long records stay cached regardless of their original TTL.
+
+  # DNSSEC
+  enable_dnssec:
+    name: Enable DNSSEC
+    description: Enable DNSSEC validation to verify DNS responses are authentic and haven't been tampered with.
+
+  # Privacy
+  qname_minimisation:
+    name: QNAME Minimisation
+    description: Send minimal query information to upstream servers to improve privacy. Only sends the necessary part of the domain name at each step.
+  hide_identity:
+    name: Hide Server Identity
+    description: Refuse to respond to queries asking for the server's identity (id.server, hostname.bind). Improves privacy by not revealing server information.
+  hide_version:
+    name: Hide Server Version
+    description: Refuse to respond to queries asking for the server's version (version.server, version.bind). Prevents fingerprinting of the DNS server.
+
+  # Local DNS entries
+  local_records:
+    name: Local DNS Records
+    description: Custom hostname to IP address mappings for local network devices.
+    fields:
+      hostname:
+        name: Hostname
+        description: The fully qualified domain name (e.g., myserver.local)
+      ip:
+        name: IP Address
+        description: The IP address to resolve the hostname to
+
+  # Forward servers
+  forward_servers:
+    name: Forward Servers
+    description: List of upstream DNS servers to forward queries to. Leave empty to use recursive resolution (recommended for privacy).
+
+  # Logging
+  verbosity:
+    name: Log Verbosity
+    description: Logging verbosity level (0=errors only, 1=operational info, 2=detailed info, 3-5=debug levels)
+  log_queries:
+    name: Log DNS Queries
+    description: Log all DNS queries to the add-on log. Useful for debugging but may impact performance and privacy.
+
+network:
+  53/tcp: DNS queries over TCP
+  53/udp: DNS queries over UDP
