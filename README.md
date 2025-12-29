@@ -1,4 +1,4 @@
-# Unbound Add-ons for Home Assistant
+# Unbound Add-on for Home Assistant
 
 [![License](https://img.shields.io/github/license/fenio/ha-unbound-addon.svg)](LICENSE)
 

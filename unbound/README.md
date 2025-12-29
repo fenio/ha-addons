@@ -1,4 +1,4 @@
-# Unbound DNS Resolver Add-on for Home Assistant
+# Unbound DNS Resolver 
 
 A Home Assistant add-on that provides a recursive DNS resolver using Unbound.
 
