@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.0.4] - 2025/12/29
+
+- AppArmor tuning again
+
 ## [0.0.3] - 2025/12/29
 
 - AppArmor tuning

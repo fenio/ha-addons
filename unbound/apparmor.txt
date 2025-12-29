@@ -24,6 +24,7 @@ profile unbound flags=(attach_disconnected,mediate_deleted) {
   /usr/bin/** rix,
   /usr/lib/bashio/** rix,
   /etc/s6/** rix,
+  /etc/s6-overlay/** rwix,
   /run/s6/** rwix,
   /run/{s6,s6-rc*,service}/** rwix,
   /package/** rix,
@@ -33,6 +34,8 @@ profile unbound flags=(attach_disconnected,mediate_deleted) {
   /etc/cont-finish.d/** rwix,
   /run/{,**} rwk,
   /dev/tty rw,
+  /lib/** rm,
+  /usr/lib/** rm,
 
   # Unbound specific
   /usr/sbin/unbound rix,
