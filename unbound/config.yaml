@@ -1,0 +1,104 @@
+name: "Unbound DNS"
+description: "Unbound recursive DNS resolver for Home Assistant"
+version: "0.0.1"
+slug: "unbound"
+init: false
+arch:
+  - amd64
+  - aarch64
+  - armhf
+  - armv7
+  - i386
+host_network: true
+ports:
+  53/tcp: 5053
+  53/udp: 5053
+ports_description:
+  53/tcp: DNS TCP queries
+  53/udp: DNS UDP queries
+map:
+  - config:rw
+options:
+  # Network settings
+  access_control:
+    - "127.0.0.0/8"
+    - "10.0.0.0/8"
+    - "172.16.0.0/12"
+    - "192.168.0.0/16"
+  
+  # Performance settings
+  num_threads: 2
+  prefetch: true
+  fast_server_permil: 500
+  fast_server_num: 5
+  
+  # IP version preferences
+  prefer_ip4: true
+  do_ip4: true
+  do_ip6: true
+  
+  # Cache settings
+  cache_min_ttl: 60
+  cache_max_ttl: 86400
+  
+  # DNSSEC
+  enable_dnssec: true
+  
+  # Privacy
+  qname_minimisation: true
+  hide_identity: true
+  hide_version: true
+  
+  # Local DNS entries (hostname to IP mappings)
+  local_records: []
+  
+  # Forward servers (empty = recursive resolver)
+  forward_servers: []
+  
+  # Logging
+  verbosity: 1
+  log_queries: false
+
+schema:
+  # Network settings
+  access_control:
+    - str
+  
+  # Performance settings
+  num_threads: int(1,16)
+  prefetch: bool
+  fast_server_permil: int(0,1000)
+  fast_server_num: int(1,20)
+  
+  # IP version preferences
+  prefer_ip4: bool
+  do_ip4: bool
+  do_ip6: bool
+  
+  # Cache settings
+  cache_min_ttl: int(0,86400)
+  cache_max_ttl: int(60,604800)
+  
+  # DNSSEC
+  enable_dnssec: bool
+  
+  # Privacy
+  qname_minimisation: bool
+  hide_identity: bool
+  hide_version: bool
+  
+  # Local DNS entries
+  local_records:
+    - hostname: str
+      ip: str
+  
+  # Forward servers
+  forward_servers:
+    - str
+  
+  # Logging
+  verbosity: int(0,5)
+  log_queries: bool
+
+startup: system
+homeassistant_api: false
