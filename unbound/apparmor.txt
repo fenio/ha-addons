@@ -20,6 +20,7 @@ profile unbound flags=(attach_disconnected,mediate_deleted) {
 
   # S6-Overlay
   /init rix,
+  /run.sh rix,
   /bin/** rix,
   /usr/bin/** rix,
   /usr/lib/bashio/** rix,
