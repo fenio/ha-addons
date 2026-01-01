@@ -26,7 +26,7 @@ A recursive DNS resolver using Unbound with support for:
 
 1. Click the button below to add this repository:
 
-   [![Add repository](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/fenio/ha-unbound-addon)
+   [![Add repository](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/fenio/ha-addons)
 
 2. Or manually add the repository URL in Home Assistant:
    - Go to **Settings** > **Add-ons** > **Add-on Store**
