@@ -211,8 +211,9 @@ if bashio::config.has_value 'initial_users'; then
     done
 fi
 
-# Create etcd data directory in persistent storage
+# Create required directories in persistent storage
 mkdir -p /share/omni/etcd
+mkdir -p /share/omni/omnictl
 ln -sf /share/omni/etcd /data/etcd 2>/dev/null || true
 
 bashio::log.info "Starting Omni with configuration:"
