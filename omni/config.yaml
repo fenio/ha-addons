@@ -1,6 +1,6 @@
 name: "Omni"
 description: "Siderolabs Omni - Kubernetes cluster management platform for Talos Linux"
-version: "0.0.1-t1"
+version: "0.0.1-t2"
 slug: "omni"
 init: false
 arch:

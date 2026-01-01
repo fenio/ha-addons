@@ -1,5 +1,8 @@
 #!/usr/bin/with-contenv bashio
 # shellcheck shell=bash
+
+# Trap errors and log them
+trap 'bashio::log.error "Script failed at line $LINENO with exit code $?"' ERR
 set -e
 
 bashio::log.info "Starting Omni - Siderolabs Kubernetes Management Platform..."
@@ -62,8 +65,11 @@ PRIVATE_KEY_PATH="/data/omni.asc"
 
 if bashio::config.has_value 'private_key'; then
     bashio::log.info "Using GPG key from configuration..."
-    bashio::config 'private_key' > "${PRIVATE_KEY_PATH}"
-    bashio::log.info "GPG key saved to ${PRIVATE_KEY_PATH}"
+    bashio::config 'private_key' > "${PRIVATE_KEY_PATH}" || {
+        bashio::log.error "Failed to write GPG key to ${PRIVATE_KEY_PATH}"
+        exit 1
+    }
+    bashio::log.info "GPG key saved to ${PRIVATE_KEY_PATH} ($(wc -c < "${PRIVATE_KEY_PATH}") bytes)"
 elif bashio::config.has_value 'private_key_file'; then
     PRIVATE_KEY_FILE=$(bashio::config 'private_key_file')
     if [ -f "/config/${PRIVATE_KEY_FILE}" ]; then
