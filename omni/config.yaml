@@ -1,6 +1,6 @@
 name: "Omni"
 description: "Siderolabs Omni - Kubernetes cluster management platform for Talos Linux"
-version: "0.0.1-t6"
+version: "0.0.1-t7"
 slug: "omni"
 init: false
 arch:
@@ -123,6 +123,7 @@ schema:
   wireguard_port: int(1024,65535)
 
 startup: system
+webui: https://[HOST]:[PORT:443]
 apparmor: false
 homeassistant_api: false
 hassio_api: false
