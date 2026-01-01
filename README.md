@@ -34,7 +34,7 @@ A recursive DNS resolver using Unbound with support for:
    - Add: `https://github.com/fenio/ha-addons`
    - Click **Add** and **Close**
 
-3. Refresh the add-on store and find "Unbound DNS" to install
+3. Refresh the add-on store and find add-on to install
 
 ## License
 
