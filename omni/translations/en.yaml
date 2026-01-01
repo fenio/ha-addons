@@ -1,0 +1,100 @@
+configuration:
+  # Instance settings
+  name:
+    name: Instance Name
+    description: A friendly name for this Omni instance.
+  account_id:
+    name: Account ID
+    description: Unique account identifier (UUID). Leave empty to auto-generate on first run.
+
+  # Domain/Network settings
+  advertised_domain:
+    name: Advertised Domain
+    description: The domain name where Omni will be accessible (e.g., omni.example.com). Must have valid SSL certificates.
+  wireguard_advertised_ip:
+    name: WireGuard IP Address
+    description: The public IP address for WireGuard connections. Must be an IP address, not a domain name.
+
+  # TLS settings
+  tls_cert:
+    name: TLS Certificate
+    description: Filename of TLS certificate in /ssl directory (e.g., fullchain.pem). Leave empty for insecure mode.
+  tls_key:
+    name: TLS Private Key
+    description: Filename of TLS private key in /ssl directory (e.g., privkey.pem). Leave empty for insecure mode.
+
+  # Auth0 settings
+  auth_auth0_enabled:
+    name: Enable Auth0
+    description: Use Auth0 for authentication.
+  auth_auth0_domain:
+    name: Auth0 Domain
+    description: Your Auth0 domain (e.g., your-tenant.auth0.com).
+  auth_auth0_client_id:
+    name: Auth0 Client ID
+    description: The Client ID from your Auth0 application.
+
+  # SAML settings
+  auth_saml_enabled:
+    name: Enable SAML
+    description: Use SAML for authentication (Azure AD, Okta, Keycloak, etc.).
+  auth_saml_url:
+    name: SAML Metadata URL
+    description: The federation metadata URL from your SAML identity provider.
+
+  # OIDC settings
+  auth_oidc_enabled:
+    name: Enable OIDC
+    description: Use OpenID Connect for authentication.
+  auth_oidc_provider_url:
+    name: OIDC Provider URL
+    description: URL of the OIDC identity provider.
+  auth_oidc_client_id:
+    name: OIDC Client ID
+    description: Client ID from your OIDC provider.
+  auth_oidc_client_secret:
+    name: OIDC Client Secret
+    description: Client secret from your OIDC provider (if required).
+  auth_oidc_logout_url:
+    name: OIDC Logout URL
+    description: Optional logout URL from your OIDC provider.
+  auth_oidc_scopes:
+    name: OIDC Scopes
+    description: List of OAuth scopes to request (typically openid, profile, email).
+
+  # Initial users
+  initial_users:
+    name: Initial Admin Users
+    description: Email addresses of users who should have admin access on first login (for Auth0).
+
+  # GPG key
+  private_key:
+    name: GPG Private Key
+    description: Paste the full GPG key content here (armored format starting with -----BEGIN PGP PRIVATE KEY BLOCK-----). This is the recommended option.
+  private_key_file:
+    name: GPG Key Filename
+    description: Alternative to pasting the key - specify a filename in the /config directory containing the GPG key.
+
+  # Advanced settings
+  event_sink_port:
+    name: Event Sink Port
+    description: Port for the event sink service.
+  bind_addr:
+    name: Bind Address
+    description: Address and port for the main API (e.g., 0.0.0.0:443).
+  siderolink_api_bind_addr:
+    name: SideroLink API Bind Address
+    description: Address and port for the SideroLink API.
+  k8s_proxy_bind_addr:
+    name: Kubernetes Proxy Bind Address
+    description: Address and port for the Kubernetes proxy.
+  wireguard_port:
+    name: WireGuard Port
+    description: UDP port for WireGuard tunnel connections.
+
+network:
+  443/tcp: HTTPS Web UI and API
+  8090/tcp: SideroLink API for machine connections
+  8091/tcp: Event sink service
+  8100/tcp: Kubernetes API proxy
+  50180/udp: WireGuard tunnel for secure machine communication

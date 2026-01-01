@@ -1,0 +1,132 @@
+name: "Omni"
+description: "Siderolabs Omni - Kubernetes cluster management platform for Talos Linux"
+version: "0.0.1"
+slug: "omni"
+init: false
+arch:
+  - amd64
+  - aarch64
+
+# Omni uses multiple ports
+ports:
+  443/tcp: 8443
+  8090/tcp: 8090
+  8091/tcp: 8091
+  8100/tcp: 8100
+  50180/udp: 50180
+ports_description:
+  443/tcp: HTTPS Web UI and API
+  8090/tcp: SideroLink API
+  8091/tcp: Event sink
+  8100/tcp: Kubernetes proxy
+  50180/udp: WireGuard tunnel
+
+# Persistent storage for etcd data and keys
+map:
+  - config:rw
+  - ssl:ro
+  - share:rw
+
+options:
+  # Instance settings
+  name: "omni"
+  account_id: ""
+  
+  # Domain/Network settings
+  advertised_domain: ""
+  wireguard_advertised_ip: ""
+  
+  # TLS Certificate paths (relative to /ssl)
+  tls_cert: ""
+  tls_key: ""
+  
+  # Authentication - Auth0
+  auth_auth0_enabled: false
+  auth_auth0_domain: ""
+  auth_auth0_client_id: ""
+  
+  # Authentication - SAML
+  auth_saml_enabled: false
+  auth_saml_url: ""
+  
+  # Authentication - OIDC
+  auth_oidc_enabled: false
+  auth_oidc_provider_url: ""
+  auth_oidc_client_id: ""
+  auth_oidc_client_secret: ""
+  auth_oidc_logout_url: ""
+  auth_oidc_scopes:
+    - "openid"
+    - "profile"
+    - "email"
+  
+  # Initial admin users (email addresses)
+  initial_users: []
+  
+  # GPG key for etcd encryption
+  # Option 1: Paste the key content directly (recommended)
+  private_key: ""
+  # Option 2: Filename in config directory (if private_key is empty)
+  private_key_file: ""
+  
+  # Advanced settings
+  event_sink_port: 8091
+  bind_addr: "0.0.0.0:443"
+  siderolink_api_bind_addr: "0.0.0.0:8090"
+  k8s_proxy_bind_addr: "0.0.0.0:8100"
+  wireguard_port: 50180
+
+schema:
+  # Instance settings
+  name: str
+  account_id: str
+  
+  # Domain/Network settings
+  advertised_domain: str
+  wireguard_advertised_ip: str
+  
+  # TLS settings
+  tls_cert: str
+  tls_key: str
+  
+  # Auth0
+  auth_auth0_enabled: bool
+  auth_auth0_domain: str?
+  auth_auth0_client_id: str?
+  
+  # SAML
+  auth_saml_enabled: bool
+  auth_saml_url: str?
+  
+  # OIDC
+  auth_oidc_enabled: bool
+  auth_oidc_provider_url: str?
+  auth_oidc_client_id: str?
+  auth_oidc_client_secret: str?
+  auth_oidc_logout_url: str?
+  auth_oidc_scopes:
+    - str
+  
+  # Initial users
+  initial_users:
+    - str
+  
+  # GPG key
+  private_key: str?
+  private_key_file: str?
+  
+  # Advanced
+  event_sink_port: int(1024,65535)
+  bind_addr: str
+  siderolink_api_bind_addr: str
+  k8s_proxy_bind_addr: str
+  wireguard_port: int(1024,65535)
+
+startup: system
+apparmor: false
+homeassistant_api: false
+hassio_api: false
+privileged:
+  - NET_ADMIN
+devices:
+  - /dev/net/tun
