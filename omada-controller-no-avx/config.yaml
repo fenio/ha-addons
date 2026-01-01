@@ -1,0 +1,49 @@
+name: Omada Controller (No AVX)
+description: TP-Link Omada Controller for CPUs without AVX support
+version: 6.0.0.25
+slug: omada_controller_no_avx
+url: https://github.com/fenio/omada-controller-no-avx
+image: ghcr.io/fenio/omada-controller-no-avx
+webui: https://[HOST]:[PORT:8043]
+startup: application
+arch:
+  - amd64
+init: false
+map:
+  - ssl:ro
+options:
+  enable_hass_ssl: false
+  certfile: fullchain.pem
+  keyfile: privkey.pem
+  enable_workaround_509: false
+schema:
+  enable_hass_ssl: bool
+  certfile: str
+  keyfile: str
+  enable_workaround_509: bool
+ports:
+  8088/tcp: 8088
+  8043/tcp: 8043
+  8843/tcp: 8843
+  27001/udp: 27001
+  29810/udp: 29810
+  29811/tcp: 29811
+  29812/tcp: 29812
+  29813/tcp: 29813
+  29814/tcp: 29814
+  29815/tcp: 29815
+  29816/tcp: 29816
+  29817/tcp: 29817
+ports_description:
+  8088/tcp: Management HTTP port
+  8043/tcp: Management HTTPS port
+  8843/tcp: Portal HTTPS port
+  27001/udp: Device discovery
+  29810/udp: EAP discovery
+  29811/tcp: EAP management v1
+  29812/tcp: EAP adoption
+  29813/tcp: EAP management v2
+  29814/tcp: EAP management v2
+  29815/tcp: EAP reset
+  29816/tcp: EAP manager access
+  29817/tcp: EAP manager access

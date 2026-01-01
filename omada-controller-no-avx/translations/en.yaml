@@ -1,0 +1,14 @@
+---
+configuration:
+  enable_hass_ssl:
+    name: Enable Home Assistant SSL
+    description: Use Home Assistant SSL certificates for the Omada Controller
+  certfile:
+    name: Certificate file
+    description: Path to SSL certificate file relative to /ssl directory
+  keyfile:
+    name: Private key file
+    description: Path to SSL private key file relative to /ssl directory
+  enable_workaround_509:
+    name: Enable 509 workaround
+    description: Enable workaround for 509 certificate errors
