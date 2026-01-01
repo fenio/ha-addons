@@ -1,9 +1,9 @@
-name: Omada Controller (No AVX)
-description: TP-Link Omada Controller for CPUs without AVX support
-version: 6.0.0.25-b3
-slug: omada_controller_no_avx
-url: https://github.com/fenio/omada-controller-no-avx
-image: ghcr.io/fenio/omada-controller-no-avx:6.0.0.25-b3
+name: "Omada Controller (No AVX)"
+description: "TP-Link Omada Controller for CPUs without AVX support"
+version: "6.0.0.25-b3"
+slug: "omada_controller_no_avx"
+url: "https://github.com/fenio/omada-controller-no-avx"
+image: "ghcr.io/fenio/omada-controller-no-avx:6.0.0.25-b3"
 webui: https://[HOST]:[PORT:8043]
 startup: application
 arch:
