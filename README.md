@@ -22,6 +22,12 @@ A recursive DNS resolver using Unbound with support for:
 - Caching with configurable TTL
 - Forwarding or full recursive mode
 
+### [DLNA Proxy](./dlnaproxy)
+
+![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)
+
+Makes a remote DLNA server (e.g., MiniDLNA) discoverable on your local network by broadcasting SSDP alive messages on its behalf. Useful when your media server is behind a VPN or on a different network segment.
+
 ## Installation
 
 1. Click the button below to add this repository:
