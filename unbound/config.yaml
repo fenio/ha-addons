@@ -1,5 +1,6 @@
 name: "Unbound"
 description: "Unbound recursive DNS resolver"
+url: "https://github.com/fenio/ha-addons/tree/main/unbound"
 version: "0.0.6"
 slug: "unbound"
 init: false
