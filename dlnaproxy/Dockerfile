@@ -1,8 +1,10 @@
+# Global ARG for build base image
+ARG BUILD_FROM
+
 # Get dlnaproxy binary from the official image
 FROM ghcr.io/fenio/dlnaproxy:main AS dlnaproxy
 
 # Build the actual addon
-ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # Install required dependencies
