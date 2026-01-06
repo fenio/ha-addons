@@ -1,7 +1,7 @@
 name: "Omni"
 description: "Siderolabs Omni - Kubernetes cluster management platform for Talos Linux"
 url: "https://github.com/fenio/ha-addons/tree/main/omni"
-version: "1.4.6-ha1"
+version: "1.4.7-ha1"
 slug: "omni"
 init: false
 arch:
