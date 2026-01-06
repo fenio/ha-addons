@@ -22,11 +22,17 @@ A recursive DNS resolver using Unbound with support for:
 - Caching with configurable TTL
 - Forwarding or full recursive mode
 
-### [DLNA Proxy](./dlnaproxy)
+### [DLNA Proxy](./dlna-proxy)
 
 ![Version](https://img.shields.io/badge/version-0.0.1-blue.svg)
 
 Makes a remote DLNA server (e.g., MiniDLNA) discoverable on your local network by broadcasting SSDP alive messages on its behalf. Useful when your media server is behind a VPN or on a different network segment.
+
+### [Omni](./omni)
+
+![Version](https://img.shields.io/badge/version-1.4.7--ha1-blue.svg)
+
+Siderolabs Omni - Kubernetes cluster management platform for Talos Linux. Provides a unified interface for managing Talos-based Kubernetes clusters with secure WireGuard connectivity.
 
 ## Installation
 
