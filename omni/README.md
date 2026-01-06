@@ -1,4 +1,4 @@
-# Home Assistant Add-on: Omni
+# Omni
 
 Siderolabs Omni - Kubernetes cluster management platform for Talos Linux.
 
@@ -15,6 +15,7 @@ Before starting the add-on, you need to prepare:
 ### 1. Valid SSL Certificates
 
 Omni requires valid SSL certificates (self-signed certificates will NOT work). You can use:
+- **Let's Encrypt add-on** - recommended for Home Assistant users
 - Let's Encrypt with certbot
 - Your organization's certificate authority
 - Any trusted certificate provider
