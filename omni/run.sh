@@ -21,6 +21,7 @@ BIND_ADDR=$(bashio::config 'bind_addr')
 MACHINE_API_BIND_ADDR=$(bashio::config 'siderolink_api_bind_addr')
 K8S_PROXY_BIND_ADDR=$(bashio::config 'k8s_proxy_bind_addr')
 WIREGUARD_PORT=$(bashio::config 'wireguard_port')
+LOG_LEVEL=$(bashio::config 'log_level')
 
 # Authentication settings
 AUTH_AUTH0_ENABLED=$(bashio::config 'auth_auth0_enabled')
@@ -118,6 +119,7 @@ OMNI_ARGS=(
     "--siderolink-api-advertised-url=https://${ADVERTISED_DOMAIN}:8090/"
     "--siderolink-wireguard-advertised-addr=${WIREGUARD_IP_CLEAN}:${WIREGUARD_PORT}"
     "--advertised-kubernetes-proxy-url=https://${ADVERTISED_DOMAIN}:8100/"
+    "--log-level=${LOG_LEVEL}"
 )
 
 # Add TLS certificates if provided
@@ -127,8 +129,8 @@ if [ -n "${TLS_CERT}" ] && [ -n "${TLS_KEY}" ]; then
         OMNI_ARGS+=(
             "--cert=/ssl/${TLS_CERT}"
             "--key=/ssl/${TLS_KEY}"
-            "--siderolink-api-cert=/ssl/${TLS_CERT}"
-            "--siderolink-api-key=/ssl/${TLS_KEY}"
+            "--machine-api-cert=/ssl/${TLS_CERT}"
+            "--machine-api-key=/ssl/${TLS_KEY}"
         )
     else
         bashio::log.warning "TLS certificate files not found, running without TLS"
