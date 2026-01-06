@@ -21,7 +21,6 @@ BIND_ADDR=$(bashio::config 'bind_addr')
 MACHINE_API_BIND_ADDR=$(bashio::config 'siderolink_api_bind_addr')
 K8S_PROXY_BIND_ADDR=$(bashio::config 'k8s_proxy_bind_addr')
 WIREGUARD_PORT=$(bashio::config 'wireguard_port')
-LOG_LEVEL=$(bashio::config 'log_level')
 
 # Authentication settings
 AUTH_AUTH0_ENABLED=$(bashio::config 'auth_auth0_enabled')
@@ -119,7 +118,6 @@ OMNI_ARGS=(
     "--siderolink-api-advertised-url=https://${ADVERTISED_DOMAIN}:8090/"
     "--siderolink-wireguard-advertised-addr=${WIREGUARD_IP_CLEAN}:${WIREGUARD_PORT}"
     "--advertised-kubernetes-proxy-url=https://${ADVERTISED_DOMAIN}:8100/"
-    "--log-level=${LOG_LEVEL}"
 )
 
 # Add TLS certificates if provided

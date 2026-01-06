@@ -1,7 +1,7 @@
 name: "Omni"
 description: "Siderolabs Omni - Kubernetes cluster management platform for Talos Linux"
 url: "https://github.com/fenio/ha-addons/tree/main/omni"
-version: "0.0.1-t14"
+version: "0.0.1-t15"
 slug: "omni"
 init: false
 arch:
@@ -71,7 +71,6 @@ options:
   private_key_file: ""
   
   # Advanced settings
-  log_level: "info"
   event_sink_port: 8091
   bind_addr: "0.0.0.0:443"
   siderolink_api_bind_addr: "0.0.0.0:8090"
@@ -118,7 +117,6 @@ schema:
   private_key_file: str?
   
   # Advanced
-  log_level: str
   event_sink_port: int(1024,65535)
   bind_addr: str
   siderolink_api_bind_addr: str
