@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.8-ha1] - 2026/01/09
+
+### Changed
+- Update dlna-proxy to 0.4.8
+
 ## [0.4.2-ha2] - 2026/01/08
 
 ### Added
