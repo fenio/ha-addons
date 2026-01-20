@@ -2,7 +2,7 @@
 ARG BUILD_FROM
 
 # Get dlna-proxy binary from the official image
-FROM ghcr.io/fenio/dlna-proxy:0.5.0 AS dlna-proxy
+FROM ghcr.io/fenio/dlna-proxy:0.6.0 AS dlna-proxy
 
 # Build the actual addon
 FROM ${BUILD_FROM}

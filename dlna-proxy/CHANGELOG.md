@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.0-ha1] - 2026/01/20
+
+### Changed
+- Update dlna-proxy to 0.6.0
+  - Async architecture: TCP proxy now uses Tokio tasks instead of OS threads
+  - Resource limits: 10MB body size limit and 100 concurrent connection limit
+  - Improved error handling: graceful error propagation instead of panics
+  - Better container support: SIGTERM handler for Docker/Kubernetes orchestration
+
 ## [0.5.0-ha2] - 2026/01/10
 
 ### Fixed

@@ -1,7 +1,7 @@
 name: "DLNA Proxy"
 description: "Broadcasts SSDP alive messages on behalf of a remote DLNA server, making it discoverable on your local network"
 url: "https://github.com/fenio/dlna-proxy"
-version: "0.5.0-ha2"
+version: "0.6.0-ha1"
 slug: "dlna-proxy"
 init: false
 arch:
