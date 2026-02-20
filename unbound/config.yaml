@@ -1,7 +1,7 @@
 name: "Unbound"
 description: "Unbound recursive DNS resolver"
 url: "https://github.com/fenio/ha-addons/tree/main/unbound"
-version: "1.24.2-ha1"
+version: "1.24.2-ha2"
 slug: "unbound"
 init: false
 arch:
@@ -17,8 +17,11 @@ ports_description:
   53/tcp: DNS TCP queries
   53/udp: DNS UDP queries
 map:
-  - config:rw
+  - addon_config:rw
 options:
+  # Custom config mode
+  custom_config: false
+
   # Network settings
   access_control:
     - "127.0.0.0/8"
@@ -60,6 +63,9 @@ options:
   log_queries: false
 
 schema:
+  # Custom config mode
+  custom_config: bool
+
   # Network settings
   access_control:
     - str

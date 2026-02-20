@@ -28,6 +28,7 @@ A Home Assistant add-on that provides a recursive DNS resolver using Unbound.
 
 | Option | Default | Description |
 |--------|---------|-------------|
+| `custom_config` | `false` | Use your own `unbound.conf` instead of generated config |
 | `access_control` | Private networks | List of networks allowed to query (CIDR notation) |
 | `num_threads` | `2` | Number of threads for processing |
 | `prefetch` | `true` | Prefetch popular entries before expiry |
@@ -66,6 +67,18 @@ local_records:
     ip: "10.10.20.102"
 forward_servers: []
 ```
+
+### Custom Configuration
+
+If the options above don't cover your needs, you can provide your own `unbound.conf` file for full control over Unbound's configuration.
+
+1. Set `custom_config` to `true` in the addon options
+2. Place your `unbound.conf` file at `/addon_configs/unbound/unbound.conf`
+3. Restart the addon
+
+When custom config mode is enabled, all other addon options (access control, cache settings, forward servers, etc.) are ignored — the addon uses your file as-is.
+
+Your config file must be a valid Unbound configuration. The addon will run `unbound-checkconf` before starting and log an error if the config is invalid.
 
 ### Forwarding vs Recursive Mode
 

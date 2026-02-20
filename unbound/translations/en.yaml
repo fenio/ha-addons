@@ -1,4 +1,9 @@
 configuration:
+  # Custom config mode
+  custom_config:
+    name: Custom Configuration
+    description: Use your own unbound.conf file instead of the generated configuration. Place your config file at addon_configs/unbound/unbound.conf.
+
   # Network settings
   access_control:
     name: Access Control
