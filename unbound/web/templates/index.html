@@ -630,6 +630,13 @@
                 </div>
             </div>
             <div class="setting-row">
+                <div class="setting-label">DNS-over-TLS</div>
+                <div class="setting-input">
+                    <label class="toggle"><input type="checkbox" id="cfg-forward_tls"><span class="toggle-slider"></span></label>
+                    <p class="text-muted" style="margin-top:6px">Use TLS when forwarding (e.g. 1.1.1.1@853). Requires forward servers.</p>
+                </div>
+            </div>
+            <div class="setting-row">
                 <div class="setting-label">IPv4</div>
                 <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-do_ip4"><span class="toggle-slider"></span></label></div>
             </div>
@@ -1168,8 +1175,9 @@
 
         function renderSettings(config, schema) {
             // Boolean toggles
-            var boolKeys = ["custom_config", "do_ip4", "do_ip6", "prefer_ip4", "prefetch",
-                            "enable_dnssec", "qname_minimisation", "hide_identity",
+            var boolKeys = ["custom_config", "do_ip4", "do_ip6", "prefer_ip4",
+                            "forward_tls", "prefetch", "enable_dnssec",
+                            "qname_minimisation", "hide_identity",
                             "hide_version", "log_queries"];
             boolKeys.forEach(function(key) {
                 var el = document.getElementById("cfg-" + key);
@@ -1232,8 +1240,9 @@
         function collectSettings() {
             var config = {};
             // Booleans
-            ["custom_config", "do_ip4", "do_ip6", "prefer_ip4", "prefetch",
-             "enable_dnssec", "qname_minimisation", "hide_identity",
+            ["custom_config", "do_ip4", "do_ip6", "prefer_ip4",
+             "forward_tls", "prefetch", "enable_dnssec",
+             "qname_minimisation", "hide_identity",
              "hide_version", "log_queries"].forEach(function(key) {
                 var el = document.getElementById("cfg-" + key);
                 if (el) config[key] = el.checked;

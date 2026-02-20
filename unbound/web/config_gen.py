@@ -96,6 +96,10 @@ CONFIG_SCHEMA = {
         "type": "list",
         "default": [],
     },
+    "forward_tls": {
+        "type": "bool",
+        "default": False,
+    },
     "verbosity": {
         "type": "int",
         "default": 1,
@@ -282,7 +286,7 @@ def generate_unbound_conf(config):
         lines.append("")
         lines.append("forward-zone:")
         lines.append('    name: "."')
-        lines.append("    forward-tls-upstream: no")
+        lines.append(f"    forward-tls-upstream: {_bool_to_yesno(config.get('forward_tls', False))}")
         for server in forward_servers:
             lines.append(f"    forward-addr: {server}")
 

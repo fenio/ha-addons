@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.24.2-ha15] - 2026/02/21
+
+- Clean up dead seeding code from run.sh (removed bashio option references)
+- Add Docker HEALTHCHECK for DNS query monitoring
+- Auto-refresh blocklists every 24 hours in background
+- Add DNS-over-TLS forwarding toggle in Settings
+- Auto-update root hints on startup
+
 ## [1.24.2-ha14] - 2026/02/21
 
 - Switch from Flask dev server to Waitress production WSGI server

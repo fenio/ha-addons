@@ -2,9 +2,11 @@
 
 import importlib.util
 import json
+import logging
 import os
 import re
 import subprocess
+import threading
 import time
 
 from flask import Flask, jsonify, render_template, request
@@ -248,9 +250,8 @@ def api_blocklists_remove(idx):
     return jsonify({"status": "removed", "url": removed})
 
 
-@app.route("/api/blocklists/refresh", methods=["POST"])
-def api_blocklists_refresh():
-    """Re-download all blocklists, subtract whitelist, and reload unbound."""
+def _do_blocklist_refresh():
+    """Core blocklist refresh logic. Returns dict with results."""
     blocklists = load_blocklists()
     whitelist = set(d.lower() for d in load_whitelist())
     status = load_blocklist_status()
@@ -311,12 +312,18 @@ def api_blocklists_refresh():
     # Reload unbound to pick up changes
     _, reload_ok = run_unbound_control(["reload"])
 
-    return jsonify({
+    return {
         "status": "refreshed",
         "domains_blocked": len(all_domains),
         "errors": errors,
         "reload_ok": reload_ok,
-    })
+    }
+
+
+@app.route("/api/blocklists/refresh", methods=["POST"])
+def api_blocklists_refresh():
+    """Re-download all blocklists, subtract whitelist, and reload unbound."""
+    return jsonify(_do_blocklist_refresh())
 
 
 # --- Whitelist ---
@@ -518,8 +525,38 @@ def api_config_put():
     return jsonify(result), status_code
 
 
+# --- Blocklist auto-refresh ---
+
+BLOCKLIST_REFRESH_INTERVAL = 24 * 60 * 60  # 24 hours
+
+_logger = logging.getLogger("unbound-web")
+
+
+def _blocklist_auto_refresh():
+    """Background thread: refresh blocklists every 24 hours."""
+    while True:
+        time.sleep(BLOCKLIST_REFRESH_INTERVAL)
+        try:
+            blocklists = load_blocklists()
+            if not blocklists:
+                continue
+            _logger.info("Auto-refreshing blocklists (%d URLs)...", len(blocklists))
+            result = _do_blocklist_refresh()
+            _logger.info(
+                "Auto-refresh complete: %d domains blocked, %d errors",
+                result["domains_blocked"], len(result["errors"]),
+            )
+        except Exception:
+            _logger.exception("Auto-refresh failed")
+
+
 if __name__ == "__main__":
     from waitress import serve
+
+    logging.basicConfig(level=logging.INFO)
+
+    t = threading.Thread(target=_blocklist_auto_refresh, daemon=True)
+    t.start()
 
     port = int(os.environ.get("INGRESS_PORT", 2137))
     serve(app, host="0.0.0.0", port=port)

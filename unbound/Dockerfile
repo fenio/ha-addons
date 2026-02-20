@@ -7,6 +7,7 @@ RUN apk add --no-cache \
     bash \
     jq \
     curl \
+    drill \
     python3 \
     py3-flask \
     py3-waitress \
@@ -27,6 +28,10 @@ COPY web/ /web/
 # Copy run script
 COPY run.sh /
 RUN chmod a+x /run.sh
+
+# Health check: verify unbound responds to DNS queries
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD drill @127.0.0.1 -p 53 localhost || exit 1
 
 # Expose DNS ports and ingress port
 EXPOSE 53/tcp 53/udp 2137

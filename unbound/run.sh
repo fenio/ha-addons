@@ -12,14 +12,11 @@ WHITELIST_FILE="/data/whitelist.json"
 LOCAL_RECORDS_FILE="/data/local_records.json"
 LOCAL_RECORDS_CONF="/etc/unbound/local_records.conf"
 
-# Initialize blocklists file from addon config if it doesn't exist
+# Initialize blocklists file if it doesn't exist
 init_blocklists() {
     if [ ! -f "${BLOCKLISTS_FILE}" ]; then
-        # Seed from addon options
-        local urls
-        urls=$(bashio::jq '/data/options.json' '.blocklists // []')
-        echo "${urls}" > "${BLOCKLISTS_FILE}"
-        bashio::log.info "Initialized blocklists from addon config"
+        echo "[]" > "${BLOCKLISTS_FILE}"
+        bashio::log.info "Initialized empty blocklists file"
     fi
 }
 
@@ -106,24 +103,11 @@ apply_blocklists() {
     bashio::log.info "Blocklists applied: ${blocked} domains blocked"
 }
 
-# Initialize local records from addon config on first run
+# Initialize local records file if it doesn't exist
 init_local_records() {
     if [ ! -f "${LOCAL_RECORDS_FILE}" ]; then
-        # Seed from addon options if local_records is configured
-        if bashio::config.has_value 'local_records'; then
-            bashio::log.info "Seeding local records from addon config..."
-            local records="[]"
-            for record in $(bashio::jq '/data/options.json' '.local_records | keys[]'); do
-                local hostname ip
-                hostname=$(bashio::config "local_records[${record}].hostname")
-                ip=$(bashio::config "local_records[${record}].ip")
-                records=$(echo "${records}" | jq --arg h "${hostname}" --arg i "${ip}" '. + [{"hostname": $h, "ip": $i}]')
-            done
-            echo "${records}" > "${LOCAL_RECORDS_FILE}"
-            bashio::log.info "Initialized local records from addon config"
-        else
-            echo "[]" > "${LOCAL_RECORDS_FILE}"
-        fi
+        echo "[]" > "${LOCAL_RECORDS_FILE}"
+        bashio::log.info "Initialized empty local records file"
     fi
 
     # Write local_records.conf from JSON
@@ -143,6 +127,17 @@ init_local_records() {
         done
     fi
 }
+
+# Update root hints (fallback to bundled copy on failure)
+bashio::log.info "Updating root hints..."
+if curl -sS --max-time 15 -o /etc/unbound/root.hints.tmp \
+    https://www.internic.net/domain/named.root 2>/dev/null; then
+    mv /etc/unbound/root.hints.tmp /etc/unbound/root.hints
+    bashio::log.info "Root hints updated"
+else
+    rm -f /etc/unbound/root.hints.tmp
+    bashio::log.warning "Failed to update root hints, using bundled copy"
+fi
 
 # Seed config.json from options.json on first run
 python3 /web/config_gen.py --seed-if-needed
@@ -182,7 +177,7 @@ fi
 
 bashio::log.info "Configuration valid. Starting Unbound..."
 
-# Start Flask web UI in background
+# Start web UI in background
 bashio::log.info "Starting web UI on port 2137..."
 INGRESS_PATH=$(bashio::addon.ingress_entry) \
     python3 /web/app.py &
