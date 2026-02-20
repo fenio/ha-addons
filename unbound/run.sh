@@ -2,6 +2,7 @@
 # shellcheck shell=bash
 set -e
 
+bashio::log.level "$(bashio::config 'log_level')"
 bashio::log.info "Starting Unbound DNS resolver ($(bashio::addon.version))..."
 
 CUSTOM_CONFIG_PATH="/addon_configs/unbound/unbound.conf"

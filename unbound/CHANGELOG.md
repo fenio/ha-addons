@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.24.2-ha13] - 2026/02/21
+
+- Add `log_level` option to HA addon panel for debugging
+
 ## [1.24.2-ha12] - 2026/02/21
 
 - Remove all config options from HA addon panel — addon is fully self-managed
