@@ -519,5 +519,7 @@ def api_config_put():
 
 
 if __name__ == "__main__":
+    from waitress import serve
+
     port = int(os.environ.get("INGRESS_PORT", 2137))
-    app.run(host="0.0.0.0", port=port)
+    serve(app, host="0.0.0.0", port=port)

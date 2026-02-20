@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.24.2-ha14] - 2026/02/21
+
+- Switch from Flask dev server to Waitress production WSGI server
+
 ## [1.24.2-ha13] - 2026/02/21
 
 - Add `log_level` option to HA addon panel for debugging

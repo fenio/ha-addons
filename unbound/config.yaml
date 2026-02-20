@@ -1,7 +1,7 @@
 name: "Unbound"
 description: "Self-managed recursive DNS resolver with built-in web UI"
 url: "https://github.com/fenio/ha-addons/tree/main/unbound"
-version: "1.24.2-ha13"
+version: "1.24.2-ha14"
 slug: "unbound"
 image: "ghcr.io/fenio/unbound-{arch}"
 init: false

@@ -9,6 +9,7 @@ RUN apk add --no-cache \
     curl \
     python3 \
     py3-flask \
+    py3-waitress \
     openssl
 
 # Create necessary directories and download root hints
