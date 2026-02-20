@@ -48,36 +48,27 @@ apply_blocklists() {
         url=$(jq -r ".[$i]" "${BLOCKLISTS_FILE}")
         bashio::log.info "  Downloading blocklist: ${url}"
 
-        local raw
-        if raw=$(curl -sS --max-time 30 "${url}" 2>/dev/null); then
-            # Parse hosts-format file and convert to unbound local-zone directives
-            echo "${raw}" | while IFS= read -r line; do
-                # Skip comments and empty lines
-                line=$(echo "${line}" | sed 's/#.*//' | tr -d '\r')
-                [ -z "${line}" ] && continue
-
-                # Parse hosts format: 0.0.0.0 domain or 127.0.0.1 domain
-                local ip domain
-                ip=$(echo "${line}" | awk '{print $1}')
-                domain=$(echo "${line}" | awk '{print $2}')
-
-                [ -z "${domain}" ] && continue
-
-                # Only process blocking entries
-                case "${ip}" in
-                    0.0.0.0|127.0.0.1) ;;
-                    *) continue ;;
-                esac
-
-                # Skip common local hostnames
-                case "${domain}" in
-                    localhost|localhost.localdomain|local|broadcasthost) continue ;;
-                    ip6-localhost|ip6-loopback|ip6-localnet) continue ;;
-                    ip6-mcastprefix|ip6-allnodes|ip6-allrouters|ip6-allhosts) continue ;;
-                esac
-
-                echo "local-zone: \"${domain}.\" always_refuse"
-            done >> "${tmpfile}"
+        if curl -sS --max-time 30 "${url}" 2>/dev/null | awk '
+            BEGIN {
+                skip["localhost"]=1; skip["localhost.localdomain"]=1
+                skip["local"]=1; skip["broadcasthost"]=1
+                skip["ip6-localhost"]=1; skip["ip6-loopback"]=1
+                skip["ip6-localnet"]=1; skip["ip6-mcastprefix"]=1
+                skip["ip6-allnodes"]=1; skip["ip6-allrouters"]=1
+                skip["ip6-allhosts"]=1
+            }
+            {
+                # Strip comments and carriage returns
+                sub(/#.*/, ""); gsub(/\r/, "")
+                if (NF < 2) next
+                ip = $1; domain = tolower($2)
+                if (ip != "0.0.0.0" && ip != "127.0.0.1") next
+                if (domain in skip) next
+                if (domain == "") next
+                printf "local-zone: \"%s.\" always_refuse\n", domain
+            }
+        ' >> "${tmpfile}"; then
+            :
         else
             bashio::log.warning "  Failed to download: ${url}"
         fi
