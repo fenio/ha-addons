@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.24.2-ha9] - 2026/02/20
+
+- Add Settings tab to web UI for managing all server configuration
+- Move config generation from bash heredoc to Python (`config_gen.py`)
+- Settings are persisted in `/data/config.json` and hot-reloaded via `unbound-control`
+- First run seeds config from HA addon options automatically
+- Invalid config changes are rolled back automatically
+- Log addon version at startup
+
+## [1.24.2-ha5] - 2026/02/20
+
+- Replace shell while-loop blocklist parser with single-pass awk
+
+## [1.24.2-ha4] - 2026/02/20
+
+- Fix log rotation `local` keyword outside function
+
+## [1.24.2-ha3] - 2026/02/20
+
+- Add ingress web UI with DNS stats, blocklist/whitelist management, local records, query log, cache controls, and dark mode
+
 ## [1.24.2-ha2] - 2026/02/20
 
 - Add custom config file support (`custom_config` option)
