@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.24.2-ha16] - 2026/02/21
+
+- Extended Overview dashboard with queries/sec, cache misses, avg recursion time, prefetch count
+- Add query type breakdown chart (A, AAAA, MX, etc.)
+- Add response code breakdown chart (NOERROR, NXDOMAIN, SERVFAIL, etc.)
+- Add memory usage stats (rrset cache, message cache, etc.)
+- Add security section with unwanted queries/replies counters
+- Human-readable uptime format (days/hours/minutes)
+
 ## [1.24.2-ha15] - 2026/02/21
 
 - Clean up dead seeding code from run.sh (removed bashio option references)

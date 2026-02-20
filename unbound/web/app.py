@@ -181,6 +181,34 @@ def api_stats():
         with open(BLOCKLIST_CONF, "r") as f:
             blocked_count = sum(1 for line in f if line.startswith("local-zone:"))
 
+    uptime = float(stats.get("time.up", 0))
+    queries_per_sec = round(total_queries / uptime, 1) if uptime > 0 else 0
+
+    # Response codes
+    rcodes = {}
+    for key, val in stats.items():
+        if key.startswith("num.answer.rcode."):
+            rcode = key.split(".")[-1]
+            count = int(float(val))
+            if count > 0:
+                rcodes[rcode] = count
+
+    # Query types
+    qtypes = {}
+    for key, val in stats.items():
+        if key.startswith("num.query.type."):
+            qtype = key.split(".")[-1]
+            count = int(float(val))
+            if count > 0:
+                qtypes[qtype] = count
+
+    # Memory usage (bytes)
+    memory = {}
+    for key, val in stats.items():
+        if key.startswith("mem."):
+            label = key.replace("mem.", "")
+            memory[label] = int(float(val))
+
     return jsonify({
         "total_queries": int(total_queries),
         "cache_hits": int(cache_hits),
@@ -189,6 +217,15 @@ def api_stats():
         "blocked_domains": blocked_count,
         "num_threads": stats.get("num.threads", "N/A"),
         "uptime": stats.get("time.up", "N/A"),
+        "queries_per_sec": queries_per_sec,
+        "recursion_time_avg": stats.get("total.recursion.time.avg", "N/A"),
+        "recursion_time_median": stats.get("total.recursion.time.median", "N/A"),
+        "prefetch": int(float(stats.get("num.prefetch", 0))),
+        "unwanted_queries": int(float(stats.get("unwanted.queries", 0))),
+        "unwanted_replies": int(float(stats.get("unwanted.replies", 0))),
+        "rcodes": rcodes,
+        "qtypes": qtypes,
+        "memory": memory,
         "raw": stats,
     })
 
