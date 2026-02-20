@@ -1,17 +1,18 @@
 """Unbound DNS resolver web UI for Home Assistant ingress."""
 
+import importlib.util
 import json
 import os
 import re
 import subprocess
-import sys
 import time
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, jsonify, render_template, request
 
-import config_gen
+# Load config_gen from explicit path to avoid sys.path issues in container
+_spec = importlib.util.spec_from_file_location("config_gen", "/web/config_gen.py")
+config_gen = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(config_gen)
 
 app = Flask(__name__)
 
