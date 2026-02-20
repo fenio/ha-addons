@@ -143,7 +143,11 @@ init_local_records() {
     fi
 }
 
-if bashio::config.true 'custom_config'; then
+# Seed config.json from options.json on first run
+python3 /web/config_gen.py --seed-if-needed
+
+# Check custom_config from config.json
+if jq -e '.custom_config == true' /data/config.json >/dev/null 2>&1; then
     # Custom config mode: use user-provided unbound.conf
     bashio::log.info "Custom config mode enabled"
 
@@ -156,9 +160,8 @@ if bashio::config.true 'custom_config'; then
     bashio::log.info "Using custom config from ${CUSTOM_CONFIG_PATH}"
     cp "${CUSTOM_CONFIG_PATH}" /etc/unbound/unbound.conf
 else
-    # Generated config mode: seed from options.json if first run, then generate
+    # Generated config mode
     bashio::log.info "Generating Unbound configuration..."
-    python3 /web/config_gen.py --seed-if-needed
     python3 /web/config_gen.py --generate
 fi
 

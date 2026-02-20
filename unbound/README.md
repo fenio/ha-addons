@@ -28,23 +28,17 @@ A self-managed Home Assistant add-on that provides a recursive DNS resolver usin
 
 ## Configuration
 
-All settings are managed through the web UI's **Settings** tab. Changes are applied immediately via hot-reload — no addon restart needed (except for thread count changes).
-
-The only HA addon option is `custom_config`:
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `custom_config` | `false` | Use your own `unbound.conf` instead of the web UI-managed config |
+All settings are managed through the web UI's **Settings** tab. Changes are applied immediately via hot-reload — no addon restart needed (except for thread count changes). There are no options in the HA addon configuration panel.
 
 ### Custom Configuration
 
 If the web UI doesn't cover your needs, you can provide your own `unbound.conf`:
 
-1. Set `custom_config` to `true` in the addon options
+1. Enable **Custom Config** in the web UI Settings tab
 2. Place your `unbound.conf` file at `/addon_configs/unbound/unbound.conf`
 3. Restart the addon
 
-When custom config mode is enabled, the web UI Settings tab is not used — the addon uses your file as-is.
+When custom config mode is enabled, all other settings in the Settings tab are ignored — the addon uses your file as-is.
 
 ### First Run
 

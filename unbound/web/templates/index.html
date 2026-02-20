@@ -594,6 +594,18 @@
     <div class="tab-content" id="tab-settings">
         <div id="settings-status" class="status-msg"></div>
 
+        <!-- Custom Config -->
+        <div class="section">
+            <h2>Custom Config</h2>
+            <div class="setting-row">
+                <div class="setting-label">Use custom unbound.conf <span class="restart-badge">restart required</span></div>
+                <div class="setting-input">
+                    <label class="toggle"><input type="checkbox" id="cfg-custom_config"><span class="toggle-slider"></span></label>
+                    <p class="text-muted" style="margin-top:6px">When enabled, place your config at <code>/addon_configs/unbound/unbound.conf</code>. All settings below are ignored.</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Network -->
         <div class="section">
             <h2>Network</h2>
@@ -1156,7 +1168,7 @@
 
         function renderSettings(config, schema) {
             // Boolean toggles
-            var boolKeys = ["do_ip4", "do_ip6", "prefer_ip4", "prefetch",
+            var boolKeys = ["custom_config", "do_ip4", "do_ip6", "prefer_ip4", "prefetch",
                             "enable_dnssec", "qname_minimisation", "hide_identity",
                             "hide_version", "log_queries"];
             boolKeys.forEach(function(key) {
@@ -1220,7 +1232,7 @@
         function collectSettings() {
             var config = {};
             // Booleans
-            ["do_ip4", "do_ip6", "prefer_ip4", "prefetch",
+            ["custom_config", "do_ip4", "do_ip6", "prefer_ip4", "prefetch",
              "enable_dnssec", "qname_minimisation", "hide_identity",
              "hide_version", "log_queries"].forEach(function(key) {
                 var el = document.getElementById("cfg-" + key);

@@ -1,9 +1,9 @@
 # Changelog
 
-## [1.24.2-ha11] - 2026/02/21
+## [1.24.2-ha12] - 2026/02/21
 
-- Remove all config options from HA addon panel except `custom_config`
-- All settings now managed exclusively via the web UI Settings tab
+- Remove all config options from HA addon panel — addon is fully self-managed
+- Move `custom_config` toggle into web UI Settings tab
 - Update description and documentation to reflect self-managed architecture
 
 ## [1.24.2-ha10] - 2026/02/20
