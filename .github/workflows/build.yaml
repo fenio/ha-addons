@@ -1,0 +1,26 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    strategy:
+      matrix:
+        addon: [unbound]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: home-assistant/builder@master
+        with:
+          args: |
+            --all \
+            --target ${{ matrix.addon }} \
+            --docker-hub ghcr.io/fenio
+        env:
+          CAS_API_KEY: ${{ secrets.GITHUB_TOKEN }}

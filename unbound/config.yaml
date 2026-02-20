@@ -3,6 +3,7 @@ description: "Unbound recursive DNS resolver"
 url: "https://github.com/fenio/ha-addons/tree/main/unbound"
 version: "1.24.2-ha2"
 slug: "unbound"
+image: "ghcr.io/fenio/unbound-{arch}"
 init: false
 arch:
   - amd64
