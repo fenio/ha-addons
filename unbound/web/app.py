@@ -8,6 +8,8 @@ import time
 
 from flask import Flask, jsonify, render_template, request
 
+import config_gen
+
 app = Flask(__name__)
 
 BLOCKLISTS_FILE = "/data/blocklists.json"
@@ -485,6 +487,31 @@ def api_top_domains():
         return jsonify([{"domain": d, "count": c} for d, c in top])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# --- Config (Settings) ---
+
+@app.route("/api/config")
+def api_config_get():
+    """Return current config and schema for the Settings UI."""
+    config = config_gen.load_config()
+    return jsonify({"config": config, "schema": config_gen.CONFIG_SCHEMA})
+
+
+@app.route("/api/config", methods=["PUT"])
+def api_config_put():
+    """Update config, regenerate unbound.conf, and reload."""
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "message": "No JSON body"}), 400
+
+    # Merge submitted values onto current config
+    current = config_gen.load_config()
+    current.update(data)
+
+    result = config_gen.apply_config(current)
+    status_code = 200 if result["ok"] else 400
+    return jsonify(result), status_code
 
 
 if __name__ == "__main__":

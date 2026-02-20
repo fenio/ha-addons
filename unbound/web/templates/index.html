@@ -320,6 +320,100 @@
         .text-muted { color: var(--text-muted); font-size: 0.8rem; }
 
         .query-table-wrap { max-height: 500px; overflow-y: auto; }
+
+        /* Settings tab */
+        .setting-row {
+            display: flex;
+            align-items: flex-start;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .setting-row:last-child { border-bottom: none; }
+        .setting-label {
+            width: 200px;
+            flex-shrink: 0;
+            font-size: 0.9rem;
+            padding-top: 6px;
+            color: var(--text-secondary);
+        }
+        .setting-input { flex: 1; }
+        .setting-number {
+            width: 100px;
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            background: var(--bg-input);
+            color: var(--text-primary);
+        }
+        .setting-number:focus { outline: none; border-color: var(--accent); }
+
+        /* Toggle switch */
+        .toggle {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            cursor: pointer;
+        }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--border-color);
+            border-radius: 24px;
+            transition: background 0.2s;
+        }
+        .toggle-slider::before {
+            content: "";
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+        .toggle input:checked + .toggle-slider { background: var(--accent); }
+        .toggle input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+        /* Restart badge */
+        .restart-badge {
+            display: inline-block;
+            background: #f0ad4e;
+            color: #fff;
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 3px;
+            margin-left: 6px;
+            vertical-align: middle;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        /* List items for ACL / forward servers */
+        .list-items { margin-bottom: 8px; }
+        .list-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--badge-bg);
+            color: var(--text-primary);
+            border-radius: 4px;
+            padding: 4px 8px;
+            margin: 2px 4px 2px 0;
+            font-size: 0.85rem;
+        }
+        .list-item-remove {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0 2px;
+            line-height: 1;
+        }
     </style>
     <script>
         // Restore theme before render to prevent flash
@@ -342,6 +436,7 @@
         <button class="tab" data-tab="local-records">Local Records</button>
         <button class="tab" data-tab="query-log">Query Log</button>
         <button class="tab" data-tab="cache">Cache</button>
+        <button class="tab" data-tab="settings">Settings</button>
     </nav>
 
     <!-- Tab: Overview -->
@@ -495,6 +590,121 @@
         </div>
     </div>
 
+    <!-- Tab: Settings -->
+    <div class="tab-content" id="tab-settings">
+        <div id="settings-status" class="status-msg"></div>
+
+        <!-- Network -->
+        <div class="section">
+            <h2>Network</h2>
+            <div class="setting-row">
+                <div class="setting-label">Access Control Networks</div>
+                <div class="setting-input">
+                    <div id="acl-list" class="list-items"></div>
+                    <div class="add-form" style="margin-bottom:0">
+                        <input type="text" id="new-acl" placeholder="192.168.0.0/16">
+                        <button class="btn-primary btn-sm" onclick="addListItem('acl')">Add</button>
+                    </div>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Forward Servers</div>
+                <div class="setting-input">
+                    <div id="forward-list" class="list-items"></div>
+                    <div class="add-form" style="margin-bottom:0">
+                        <input type="text" id="new-forward" placeholder="1.1.1.1 (empty = recursive)">
+                        <button class="btn-primary btn-sm" onclick="addListItem('forward')">Add</button>
+                    </div>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">IPv4</div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-do_ip4"><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">IPv6</div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-do_ip6"><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Prefer IPv4</div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-prefer_ip4"><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <!-- Performance -->
+        <div class="section">
+            <h2>Performance</h2>
+            <div class="setting-row">
+                <div class="setting-label">Threads <span class="restart-badge">restart required</span></div>
+                <div class="setting-input"><input type="number" id="cfg-num_threads" min="1" max="16" class="setting-number"></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Prefetch</div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-prefetch"><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Fast Server Permil</div>
+                <div class="setting-input"><input type="number" id="cfg-fast_server_permil" min="0" max="1000" class="setting-number"></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Fast Server Num</div>
+                <div class="setting-input"><input type="number" id="cfg-fast_server_num" min="1" max="20" class="setting-number"></div>
+            </div>
+        </div>
+
+        <!-- Cache -->
+        <div class="section">
+            <h2>Cache</h2>
+            <div class="setting-row">
+                <div class="setting-label">Min TTL (seconds)</div>
+                <div class="setting-input"><input type="number" id="cfg-cache_min_ttl" min="0" max="86400" class="setting-number"></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Max TTL (seconds)</div>
+                <div class="setting-input"><input type="number" id="cfg-cache_max_ttl" min="60" max="604800" class="setting-number"></div>
+            </div>
+        </div>
+
+        <!-- Security & Privacy -->
+        <div class="section">
+            <h2>Security &amp; Privacy</h2>
+            <div class="setting-row">
+                <div class="setting-label">DNSSEC Validation</div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-enable_dnssec"><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">QNAME Minimisation</div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-qname_minimisation"><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Hide Identity</div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-hide_identity"><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Hide Version</div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-hide_version"><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <!-- Logging -->
+        <div class="section">
+            <h2>Logging</h2>
+            <div class="setting-row">
+                <div class="setting-label">Verbosity</div>
+                <div class="setting-input"><input type="number" id="cfg-verbosity" min="0" max="5" class="setting-number"></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Log Queries</div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-log_queries"><span class="toggle-slider"></span></label></div>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:4px">
+            <button class="btn-success" onclick="saveSettings()">Save &amp; Apply</button>
+            <button class="btn-secondary" onclick="resetSettings()">Reset to Defaults</button>
+        </div>
+    </div>
+
     <script>
         const BASE = "{{ ingress_path }}";
 
@@ -537,6 +747,9 @@
             if (tabId === "query-log" && !queryLogLoaded) {
                 fetchQueryLog();
                 fetchTopDomains();
+            }
+            if (tabId === "settings" && !settingsLoaded) {
+                fetchSettings();
             }
         }
 
@@ -920,6 +1133,159 @@
             }
         }
 
+        // --- Settings ---
+
+        var settingsLoaded = false;
+        var settingsSchema = {};
+        var settingsAcl = [];
+        var settingsForward = [];
+
+        async function fetchSettings() {
+            try {
+                var res = await fetch(apiUrl("/api/config"));
+                if (!res.ok) throw new Error("Config fetch failed");
+                var data = await res.json();
+                settingsSchema = data.schema;
+                renderSettings(data.config, data.schema);
+                settingsLoaded = true;
+            } catch (e) {
+                console.error("Failed to fetch settings:", e);
+                showSectionStatus("settings-status", "Failed to load settings: " + e.message, "error");
+            }
+        }
+
+        function renderSettings(config, schema) {
+            // Boolean toggles
+            var boolKeys = ["do_ip4", "do_ip6", "prefer_ip4", "prefetch",
+                            "enable_dnssec", "qname_minimisation", "hide_identity",
+                            "hide_version", "log_queries"];
+            boolKeys.forEach(function(key) {
+                var el = document.getElementById("cfg-" + key);
+                if (el) el.checked = !!config[key];
+            });
+
+            // Number inputs
+            var intKeys = ["num_threads", "fast_server_permil", "fast_server_num",
+                           "cache_min_ttl", "cache_max_ttl", "verbosity"];
+            intKeys.forEach(function(key) {
+                var el = document.getElementById("cfg-" + key);
+                if (el) el.value = config[key];
+            });
+
+            // List: access_control
+            settingsAcl = (config.access_control || []).slice();
+            renderListItems("acl", settingsAcl);
+
+            // List: forward_servers
+            settingsForward = (config.forward_servers || []).slice();
+            renderListItems("forward", settingsForward);
+        }
+
+        function renderListItems(prefix, items) {
+            var container = document.getElementById(prefix + "-list");
+            if (items.length === 0) {
+                container.innerHTML = '<span class="text-muted">None</span>';
+                return;
+            }
+            container.innerHTML = items.map(function(val, i) {
+                return '<span class="list-item">' + escapeHtml(val) +
+                    ' <button class="list-item-remove" onclick="removeListItem(\'' + prefix + '\',' + i + ')">&times;</button></span>';
+            }).join("");
+        }
+
+        function addListItem(prefix) {
+            var input = document.getElementById("new-" + prefix);
+            var val = input.value.trim();
+            if (!val) return;
+            if (prefix === "acl") {
+                settingsAcl.push(val);
+                renderListItems("acl", settingsAcl);
+            } else {
+                settingsForward.push(val);
+                renderListItems("forward", settingsForward);
+            }
+            input.value = "";
+        }
+
+        function removeListItem(prefix, idx) {
+            if (prefix === "acl") {
+                settingsAcl.splice(idx, 1);
+                renderListItems("acl", settingsAcl);
+            } else {
+                settingsForward.splice(idx, 1);
+                renderListItems("forward", settingsForward);
+            }
+        }
+
+        function collectSettings() {
+            var config = {};
+            // Booleans
+            ["do_ip4", "do_ip6", "prefer_ip4", "prefetch",
+             "enable_dnssec", "qname_minimisation", "hide_identity",
+             "hide_version", "log_queries"].forEach(function(key) {
+                var el = document.getElementById("cfg-" + key);
+                if (el) config[key] = el.checked;
+            });
+            // Ints
+            ["num_threads", "fast_server_permil", "fast_server_num",
+             "cache_min_ttl", "cache_max_ttl", "verbosity"].forEach(function(key) {
+                var el = document.getElementById("cfg-" + key);
+                if (el) config[key] = parseInt(el.value, 10);
+            });
+            // Lists
+            config.access_control = settingsAcl.slice();
+            config.forward_servers = settingsForward.slice();
+            return config;
+        }
+
+        async function saveSettings() {
+            var config = collectSettings();
+            showSectionStatus("settings-status", "Saving and applying...", "success");
+            try {
+                var res = await fetch(apiUrl("/api/config"), {
+                    method: "PUT",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(config)
+                });
+                var data = await res.json();
+                if (data.ok) {
+                    var msg = data.message || "Settings applied.";
+                    showSectionStatus("settings-status", msg, "success");
+                } else {
+                    showSectionStatus("settings-status", data.message || "Failed to apply", "error");
+                }
+            } catch (e) {
+                showSectionStatus("settings-status", "Save failed: " + e.message, "error");
+            }
+        }
+
+        async function resetSettings() {
+            if (!confirm("Reset all settings to defaults? This will regenerate the Unbound config.")) return;
+            // Build defaults from schema
+            var defaults = {};
+            for (var key in settingsSchema) {
+                if (settingsSchema[key].hasOwnProperty("default")) {
+                    defaults[key] = settingsSchema[key]["default"];
+                }
+            }
+            try {
+                var res = await fetch(apiUrl("/api/config"), {
+                    method: "PUT",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(defaults)
+                });
+                var data = await res.json();
+                if (data.ok) {
+                    renderSettings(defaults, settingsSchema);
+                    showSectionStatus("settings-status", "Settings reset to defaults.", "success");
+                } else {
+                    showSectionStatus("settings-status", data.message || "Reset failed", "error");
+                }
+            } catch (e) {
+                showSectionStatus("settings-status", "Reset failed: " + e.message, "error");
+            }
+        }
+
         // --- Enter key handlers ---
 
         document.getElementById("new-url").addEventListener("keydown", function(e) {
@@ -933,6 +1299,12 @@
         });
         document.getElementById("flush-domain-input").addEventListener("keydown", function(e) {
             if (e.key === "Enter") flushDomain();
+        });
+        document.getElementById("new-acl").addEventListener("keydown", function(e) {
+            if (e.key === "Enter") addListItem("acl");
+        });
+        document.getElementById("new-forward").addEventListener("keydown", function(e) {
+            if (e.key === "Enter") addListItem("forward");
         });
 
         // --- Initial load ---
