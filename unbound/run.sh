@@ -201,7 +201,6 @@ else
 
         # Log rotation: if log exceeds 50MB, rotate
         if [ -f "${LOG_FILE}" ]; then
-            local log_size
             log_size=$(stat -f%z "${LOG_FILE}" 2>/dev/null || stat -c%s "${LOG_FILE}" 2>/dev/null || echo 0)
             if [ "${log_size}" -gt 52428800 ]; then
                 bashio::log.info "Rotating query log (${log_size} bytes)..."
