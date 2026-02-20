@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unbound DNS</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f4f4f4;
+            color: #333;
+            padding: 20px;
+        }
+        h1 { margin-bottom: 20px; font-size: 1.5rem; }
+        h2 { margin-bottom: 12px; font-size: 1.1rem; color: #555; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-card .label {
+            font-size: 0.8rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-card .value {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .section {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .add-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .add-form input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .add-form input:focus { outline: none; border-color: #4a90d9; }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .btn-primary { background: #4a90d9; color: #fff; }
+        .btn-primary:hover { background: #3a7bc8; }
+        .btn-danger { background: #d94a4a; color: #fff; }
+        .btn-danger:hover { background: #c83a3a; }
+        .btn-success { background: #4a9; color: #fff; }
+        .btn-success:hover { background: #398; }
+        .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            font-size: 0.8rem;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        td { font-size: 0.9rem; }
+        .url-cell { word-break: break-all; }
+
+        .actions-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .status-msg {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            display: none;
+            font-size: 0.9rem;
+        }
+        .status-msg.success { display: block; background: #e6f9e6; color: #2a7a2a; }
+        .status-msg.error { display: block; background: #f9e6e6; color: #7a2a2a; }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+        }
+
+        .uptime { font-size: 0.75rem; color: #aaa; }
+    </style>
+</head>
+<body>
+    <h1>Unbound DNS Resolver</h1>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="label">Total Queries</div>
+            <div class="value" id="total-queries">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Cache Hit Rate</div>
+            <div class="value" id="cache-hit-rate">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Cache Hits</div>
+            <div class="value" id="cache-hits">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Blocked Domains</div>
+            <div class="value" id="blocked-domains">--</div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Blocklists</h2>
+        <div id="status-msg" class="status-msg"></div>
+        <div class="add-form">
+            <input type="text" id="new-url" placeholder="https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts">
+            <button class="btn-primary" onclick="addBlocklist()">Add</button>
+        </div>
+        <div class="actions-bar">
+            <button class="btn-success" onclick="refreshBlocklists()">Refresh &amp; Apply All</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>URL</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="blocklist-body">
+                <tr><td colspan="3" class="empty-state">No blocklists configured</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p class="uptime">Uptime: <span id="uptime">--</span>s</p>
+
+    <script>
+        const BASE = "{{ ingress_path }}";
+
+        function apiUrl(path) {
+            return BASE + path;
+        }
+
+        function showStatus(msg, type) {
+            const el = document.getElementById("status-msg");
+            el.textContent = msg;
+            el.className = "status-msg " + type;
+            setTimeout(() => { el.className = "status-msg"; }, 5000);
+        }
+
+        async function fetchStats() {
+            try {
+                const res = await fetch(apiUrl("/api/stats"));
+                if (!res.ok) throw new Error("Stats fetch failed");
+                const data = await res.json();
+                document.getElementById("total-queries").textContent = data.total_queries.toLocaleString();
+                document.getElementById("cache-hits").textContent = data.cache_hits.toLocaleString();
+                document.getElementById("cache-hit-rate").textContent = data.cache_hit_rate + "%";
+                document.getElementById("blocked-domains").textContent = data.blocked_domains.toLocaleString();
+                document.getElementById("uptime").textContent = Math.round(parseFloat(data.uptime));
+            } catch (e) {
+                console.error("Failed to fetch stats:", e);
+            }
+        }
+
+        async function fetchBlocklists() {
+            try {
+                const res = await fetch(apiUrl("/api/blocklists"));
+                if (!res.ok) throw new Error("Blocklist fetch failed");
+                const data = await res.json();
+                const tbody = document.getElementById("blocklist-body");
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No blocklists configured</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.map((url, i) =>
+                    `<tr>
+                        <td>${i}</td>
+                        <td class="url-cell">${escapeHtml(url)}</td>
+                        <td><button class="btn-danger btn-sm" onclick="removeBlocklist(${i})">Remove</button></td>
+                    </tr>`
+                ).join("");
+            } catch (e) {
+                console.error("Failed to fetch blocklists:", e);
+            }
+        }
+
+        function escapeHtml(text) {
+            const d = document.createElement("div");
+            d.textContent = text;
+            return d.innerHTML;
+        }
+
+        async function addBlocklist() {
+            const input = document.getElementById("new-url");
+            const url = input.value.trim();
+            if (!url) return;
+            try {
+                const res = await fetch(apiUrl("/api/blocklists"), {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({url})
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    input.value = "";
+                    showStatus("Blocklist added. Click 'Refresh & Apply All' to activate.", "success");
+                    fetchBlocklists();
+                } else {
+                    showStatus(data.error || "Failed to add", "error");
+                }
+            } catch (e) {
+                showStatus("Failed to add blocklist: " + e.message, "error");
+            }
+        }
+
+        async function removeBlocklist(idx) {
+            try {
+                const res = await fetch(apiUrl("/api/blocklists/" + idx), {method: "DELETE"});
+                const data = await res.json();
+                if (res.ok) {
+                    showStatus("Blocklist removed. Click 'Refresh & Apply All' to update.", "success");
+                    fetchBlocklists();
+                } else {
+                    showStatus(data.error || "Failed to remove", "error");
+                }
+            } catch (e) {
+                showStatus("Failed to remove blocklist: " + e.message, "error");
+            }
+        }
+
+        async function refreshBlocklists() {
+            showStatus("Downloading blocklists and reloading Unbound...", "success");
+            try {
+                const res = await fetch(apiUrl("/api/blocklists/refresh"), {method: "POST"});
+                const data = await res.json();
+                if (res.ok) {
+                    let msg = `Blocklists applied: ${data.domains_blocked.toLocaleString()} domains blocked.`;
+                    if (data.errors && data.errors.length > 0) {
+                        msg += ` (${data.errors.length} error(s))`;
+                    }
+                    showStatus(msg, "success");
+                    fetchStats();
+                } else {
+                    showStatus(data.error || "Refresh failed", "error");
+                }
+            } catch (e) {
+                showStatus("Refresh failed: " + e.message, "error");
+            }
+        }
+
+        // Allow Enter key to add blocklist
+        document.getElementById("new-url").addEventListener("keydown", (e) => {
+            if (e.key === "Enter") addBlocklist();
+        });
+
+        // Initial load
+        fetchStats();
+        fetchBlocklists();
+
+        // Auto-refresh stats every 10 seconds
+        setInterval(fetchStats, 10000);
+    </script>
+</body>
+</html>

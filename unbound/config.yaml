@@ -1,10 +1,13 @@
 name: "Unbound"
 description: "Unbound recursive DNS resolver"
 url: "https://github.com/fenio/ha-addons/tree/main/unbound"
-version: "1.24.2-ha2"
+version: "1.24.2-ha3"
 slug: "unbound"
 image: "ghcr.io/fenio/unbound-{arch}"
 init: false
+ingress: true
+ingress_port: 2137
+panel_icon: "mdi:dns"
 arch:
   - amd64
   - aarch64
@@ -60,6 +63,9 @@ options:
   verbosity: 1
   log_queries: false
 
+  # Blocklists (list of URLs to hosts-format blocklists)
+  blocklists: []
+
 schema:
   # Custom config mode
   custom_config: bool
@@ -103,6 +109,10 @@ schema:
   # Logging
   verbosity: int(0,5)
   log_queries: bool
+
+  # Blocklists
+  blocklists:
+    - str
 
 startup: system
 apparmor: true

@@ -5,6 +5,89 @@ set -e
 bashio::log.info "Starting Unbound DNS resolver..."
 
 CUSTOM_CONFIG_PATH="/addon_configs/unbound/unbound.conf"
+BLOCKLISTS_FILE="/data/blocklists.json"
+BLOCKLIST_CONF="/etc/unbound/blocklist.conf"
+
+# Initialize blocklists file from addon config if it doesn't exist
+init_blocklists() {
+    if [ ! -f "${BLOCKLISTS_FILE}" ]; then
+        # Seed from addon options
+        local urls
+        urls=$(bashio::jq '/data/options.json' '.blocklists // []')
+        echo "${urls}" > "${BLOCKLISTS_FILE}"
+        bashio::log.info "Initialized blocklists from addon config"
+    fi
+}
+
+# Download and apply blocklists
+apply_blocklists() {
+    bashio::log.info "Processing blocklists..."
+
+    if [ ! -f "${BLOCKLISTS_FILE}" ]; then
+        # No blocklists configured, write empty conf
+        > "${BLOCKLIST_CONF}"
+        return
+    fi
+
+    local count
+    count=$(jq '. | length' "${BLOCKLISTS_FILE}")
+    if [ "${count}" = "0" ]; then
+        bashio::log.info "No blocklists configured"
+        > "${BLOCKLIST_CONF}"
+        return
+    fi
+
+    local tmpfile
+    tmpfile=$(mktemp)
+
+    for i in $(seq 0 $((count - 1))); do
+        local url
+        url=$(jq -r ".[$i]" "${BLOCKLISTS_FILE}")
+        bashio::log.info "  Downloading blocklist: ${url}"
+
+        local raw
+        if raw=$(curl -sS --max-time 30 "${url}" 2>/dev/null); then
+            # Parse hosts-format file and convert to unbound local-zone directives
+            echo "${raw}" | while IFS= read -r line; do
+                # Skip comments and empty lines
+                line=$(echo "${line}" | sed 's/#.*//' | tr -d '\r')
+                [ -z "${line}" ] && continue
+
+                # Parse hosts format: 0.0.0.0 domain or 127.0.0.1 domain
+                local ip domain
+                ip=$(echo "${line}" | awk '{print $1}')
+                domain=$(echo "${line}" | awk '{print $2}')
+
+                [ -z "${domain}" ] && continue
+
+                # Only process blocking entries
+                case "${ip}" in
+                    0.0.0.0|127.0.0.1) ;;
+                    *) continue ;;
+                esac
+
+                # Skip common local hostnames
+                case "${domain}" in
+                    localhost|localhost.localdomain|local|broadcasthost) continue ;;
+                    ip6-localhost|ip6-loopback|ip6-localnet) continue ;;
+                    ip6-mcastprefix|ip6-allnodes|ip6-allrouters|ip6-allhosts) continue ;;
+                esac
+
+                echo "local-zone: \"${domain}.\" always_refuse"
+            done >> "${tmpfile}"
+        else
+            bashio::log.warning "  Failed to download: ${url}"
+        fi
+    done
+
+    # Sort and deduplicate
+    sort -u "${tmpfile}" > "${BLOCKLIST_CONF}"
+    rm -f "${tmpfile}"
+
+    local blocked
+    blocked=$(wc -l < "${BLOCKLIST_CONF}")
+    bashio::log.info "Blocklists applied: ${blocked} domains blocked"
+}
 
 if bashio::config.true 'custom_config'; then
     # Custom config mode: use user-provided unbound.conf
@@ -100,6 +183,9 @@ server:
     log-queries: $(bool_to_yesno "$LOG_QUERIES")
     log-replies: $(bool_to_yesno "$LOG_QUERIES")
     log-servfail: yes
+
+    # Include blocklist
+    include: "${BLOCKLIST_CONF}"
 EOF
 
     # Add access control entries
@@ -141,6 +227,18 @@ EOF
         done
     fi
 
+    # Add remote-control section for unbound-control access
+    cat >> /etc/unbound/unbound.conf << EOF
+
+remote-control:
+    control-enable: yes
+    control-interface: 127.0.0.1
+    server-key-file: "/etc/unbound/unbound_server.key"
+    server-cert-file: "/etc/unbound/unbound_server.pem"
+    control-key-file: "/etc/unbound/unbound_control.key"
+    control-cert-file: "/etc/unbound/unbound_control.pem"
+EOF
+
     # Add forward zone configuration if forward servers are specified
     if bashio::config.has_value 'forward_servers'; then
         bashio::log.info "Configuring forward servers (forwarding mode)..."
@@ -160,6 +258,10 @@ EOF
     fi
 fi
 
+# Initialize and apply blocklists
+init_blocklists
+apply_blocklists
+
 # Validate configuration
 bashio::log.info "Validating Unbound configuration..."
 if ! unbound-checkconf /etc/unbound/unbound.conf; then
@@ -170,6 +272,11 @@ if ! unbound-checkconf /etc/unbound/unbound.conf; then
 fi
 
 bashio::log.info "Configuration valid. Starting Unbound..."
+
+# Start Flask web UI in background
+bashio::log.info "Starting web UI on port 2137..."
+INGRESS_PATH=$(bashio::addon.ingress_entry) \
+    python3 /web/app.py &
 
 # Run unbound in foreground
 exec unbound -d -c /etc/unbound/unbound.conf
