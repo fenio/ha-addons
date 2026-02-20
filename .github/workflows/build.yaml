@@ -21,9 +21,6 @@ jobs:
           args: |
             --amd64 \
             --aarch64 \
-            --armhf \
-            --armv7 \
-            --i386 \
             --target ${{ matrix.addon }} \
             --docker-hub ghcr.io/fenio
         env:

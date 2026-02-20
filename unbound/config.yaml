@@ -8,9 +8,6 @@ init: false
 arch:
   - amd64
   - aarch64
-  - armhf
-  - armv7
-  - i386
 ports:
   53/tcp: 5053
   53/udp: 5053
