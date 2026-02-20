@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.24.2-ha9] - 2026/02/20
+## [1.24.2-ha10] - 2026/02/20
 
 - Add Settings tab to web UI for managing all server configuration
 - Move config generation from bash heredoc to Python (`config_gen.py`)
