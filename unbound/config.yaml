@@ -1,7 +1,7 @@
 name: "Unbound"
-description: "Unbound recursive DNS resolver"
+description: "Self-managed recursive DNS resolver with built-in web UI"
 url: "https://github.com/fenio/ha-addons/tree/main/unbound"
-version: "1.24.2-ha10"
+version: "1.24.2-ha11"
 slug: "unbound"
 image: "ghcr.io/fenio/unbound-{arch}"
 init: false
@@ -20,99 +20,9 @@ ports_description:
 map:
   - addon_config:rw
 options:
-  # Custom config mode
   custom_config: false
-
-  # Network settings
-  access_control:
-    - "127.0.0.0/8"
-    - "10.0.0.0/8"
-    - "172.16.0.0/12"
-    - "192.168.0.0/16"
-  
-  # Performance settings
-  num_threads: 2
-  prefetch: true
-  fast_server_permil: 500
-  fast_server_num: 5
-  
-  # IP version preferences
-  prefer_ip4: true
-  do_ip4: true
-  do_ip6: true
-  
-  # Cache settings
-  cache_min_ttl: 60
-  cache_max_ttl: 86400
-  
-  # DNSSEC
-  enable_dnssec: true
-  
-  # Privacy
-  qname_minimisation: true
-  hide_identity: true
-  hide_version: true
-  
-  # Local DNS entries (hostname to IP mappings)
-  local_records: []
-  
-  # Forward servers (empty = recursive resolver)
-  forward_servers: []
-  
-  # Logging
-  verbosity: 1
-  log_queries: false
-
-  # Blocklists (list of URLs to hosts-format blocklists)
-  blocklists: []
-
 schema:
-  # Custom config mode
   custom_config: bool
-
-  # Network settings
-  access_control:
-    - str
-  
-  # Performance settings
-  num_threads: int(1,16)
-  prefetch: bool
-  fast_server_permil: int(0,1000)
-  fast_server_num: int(1,20)
-  
-  # IP version preferences
-  prefer_ip4: bool
-  do_ip4: bool
-  do_ip6: bool
-  
-  # Cache settings
-  cache_min_ttl: int(0,86400)
-  cache_max_ttl: int(60,604800)
-  
-  # DNSSEC
-  enable_dnssec: bool
-  
-  # Privacy
-  qname_minimisation: bool
-  hide_identity: bool
-  hide_version: bool
-  
-  # Local DNS entries
-  local_records:
-    - hostname: str
-      ip: str
-  
-  # Forward servers
-  forward_servers:
-    - str
-  
-  # Logging
-  verbosity: int(0,5)
-  log_queries: bool
-
-  # Blocklists
-  blocklists:
-    - str
 
 startup: system
 apparmor: true

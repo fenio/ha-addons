@@ -1,89 +1,54 @@
-# Unbound DNS Resolver 
+# Unbound DNS Resolver
 
-A Home Assistant add-on that provides a recursive DNS resolver using Unbound.
+A self-managed Home Assistant add-on that provides a recursive DNS resolver using Unbound. All configuration is done through the built-in web UI — no need to edit YAML or restart the addon to change settings.
 
 ## Features
 
-- **Recursive DNS Resolution**: Operates as a full recursive resolver or forwards to upstream servers
-- **Local DNS Records**: Define custom hostname to IP mappings
+- **Web UI Dashboard**: DNS stats, cache hit rate, blocked domains count, uptime
+- **Settings Tab**: Configure all server settings (network, performance, cache, security, logging) with live reload
+- **Blocklist Management**: Add/remove blocklist URLs, refresh & apply with one click
+- **Whitelist**: Exclude domains from blocklists
+- **Local DNS Records**: Custom hostname-to-IP mappings with instant apply
+- **Query Log**: View recent queries, top domains chart, filter by domain/client
+- **Cache Controls**: Flush individual domains or entire cache
+- **Recursive DNS Resolution**: Full recursive resolver or forward to upstream servers
 - **DNSSEC Validation**: Optional DNSSEC support for secure DNS lookups
-- **Caching**: Configurable DNS cache with TTL settings
-- **Privacy**: Query name minimisation and identity hiding
-- **Fast Server Selection**: Automatically prefer faster upstream servers
-- **Multi-architecture**: Supports amd64, aarch64, armhf, armv7, and i386
+- **Dark Mode**: Toggle between light and dark themes
 
 ## Installation
 
 1. Add this repository to your Home Assistant add-on store:
-   
+
    [![Add repository](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https://github.com/fenio/ha-addons)
 
    Or manually: **Settings** > **Add-ons** > **Add-on Store** > **⋮** > **Repositories** > Add `https://github.com/fenio/ha-addons`
 
 2. Find "Unbound DNS" in the add-on store and click **Install**
+3. Start the addon and open the **Web UI** to configure everything
 
 ## Configuration
 
-### Options
+All settings are managed through the web UI's **Settings** tab. Changes are applied immediately via hot-reload — no addon restart needed (except for thread count changes).
+
+The only HA addon option is `custom_config`:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `custom_config` | `false` | Use your own `unbound.conf` instead of generated config |
-| `access_control` | Private networks | List of networks allowed to query (CIDR notation) |
-| `num_threads` | `2` | Number of threads for processing |
-| `prefetch` | `true` | Prefetch popular entries before expiry |
-| `fast_server_permil` | `500` | Permil of servers to track for fast selection |
-| `fast_server_num` | `5` | Number of fast servers to prefer |
-| `prefer_ip4` | `true` | Prefer IPv4 for upstream queries |
-| `do_ip4` | `true` | Enable IPv4 |
-| `do_ip6` | `true` | Enable IPv6 |
-| `cache_min_ttl` | `60` | Minimum TTL for cached entries (seconds) |
-| `cache_max_ttl` | `86400` | Maximum TTL for cached entries (seconds) |
-| `enable_dnssec` | `true` | Enable DNSSEC validation |
-| `qname_minimisation` | `true` | Enable query name minimisation |
-| `hide_identity` | `true` | Hide server identity |
-| `hide_version` | `true` | Hide server version |
-| `local_records` | `[]` | List of local DNS records |
-| `forward_servers` | `[]` | Upstream DNS servers (empty = recursive mode) |
-| `verbosity` | `1` | Log verbosity level (0-5) |
-| `log_queries` | `false` | Log all DNS queries |
-
-### Example Configuration
-
-```yaml
-access_control:
-  - "127.0.0.0/8"
-  - "10.10.0.0/16"
-prefer_ip4: true
-cache_min_ttl: 60
-fast_server_permil: 500
-fast_server_num: 5
-local_records:
-  - hostname: "myserver.local"
-    ip: "10.10.20.100"
-  - hostname: "nas.local"
-    ip: "10.10.20.101"
-  - hostname: "printer.local"
-    ip: "10.10.20.102"
-forward_servers: []
-```
+| `custom_config` | `false` | Use your own `unbound.conf` instead of the web UI-managed config |
 
 ### Custom Configuration
 
-If the options above don't cover your needs, you can provide your own `unbound.conf` file for full control over Unbound's configuration.
+If the web UI doesn't cover your needs, you can provide your own `unbound.conf`:
 
 1. Set `custom_config` to `true` in the addon options
 2. Place your `unbound.conf` file at `/addon_configs/unbound/unbound.conf`
 3. Restart the addon
 
-When custom config mode is enabled, all other addon options (access control, cache settings, forward servers, etc.) are ignored — the addon uses your file as-is.
+When custom config mode is enabled, the web UI Settings tab is not used — the addon uses your file as-is.
 
-Your config file must be a valid Unbound configuration. The addon will run `unbound-checkconf` before starting and log an error if the config is invalid.
+### First Run
 
-### Forwarding vs Recursive Mode
-
-- **Recursive mode** (default): Leave `forward_servers` empty. Unbound will query root DNS servers directly.
-- **Forwarding mode**: Add upstream servers like `["1.1.1.1", "8.8.8.8"]` to forward queries.
+On first startup, the addon seeds its config from HA addon defaults. After that, all configuration lives in `/data/config.json` and is managed exclusively through the web UI.
 
 ## Network Configuration
 
@@ -92,10 +57,6 @@ The add-on listens on port **5053** by default (mapped from container port 53).
 To use as your network's DNS server:
 1. Configure your router's DHCP to distribute your Home Assistant's IP as the DNS server
 2. Ensure clients query port 5053, or change the port mapping to 53 in the add-on configuration
-
-### Changing the Port
-
-You can modify the port mapping in the add-on's network configuration panel.
 
 ## Troubleshooting
 
