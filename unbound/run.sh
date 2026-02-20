@@ -7,6 +7,9 @@ bashio::log.info "Starting Unbound DNS resolver..."
 CUSTOM_CONFIG_PATH="/addon_configs/unbound/unbound.conf"
 BLOCKLISTS_FILE="/data/blocklists.json"
 BLOCKLIST_CONF="/etc/unbound/blocklist.conf"
+WHITELIST_FILE="/data/whitelist.json"
+LOCAL_RECORDS_FILE="/data/local_records.json"
+LOCAL_RECORDS_CONF="/etc/unbound/local_records.conf"
 
 # Initialize blocklists file from addon config if it doesn't exist
 init_blocklists() {
@@ -84,9 +87,69 @@ apply_blocklists() {
     sort -u "${tmpfile}" > "${BLOCKLIST_CONF}"
     rm -f "${tmpfile}"
 
+    # Subtract whitelisted domains
+    if [ -f "${WHITELIST_FILE}" ]; then
+        local wl_count
+        wl_count=$(jq '. | length' "${WHITELIST_FILE}")
+        if [ "${wl_count}" != "0" ]; then
+            local wl_tmpfile
+            wl_tmpfile=$(mktemp)
+            # Build a file of patterns to exclude (domain lines from whitelist)
+            jq -r '.[]' "${WHITELIST_FILE}" | while IFS= read -r wl_domain; do
+                # Match the exact local-zone line for this domain
+                echo "local-zone: \"${wl_domain}.\" always_refuse"
+            done > "${wl_tmpfile}"
+
+            if [ -s "${wl_tmpfile}" ]; then
+                grep -v -F -f "${wl_tmpfile}" "${BLOCKLIST_CONF}" > "${BLOCKLIST_CONF}.tmp" || true
+                mv "${BLOCKLIST_CONF}.tmp" "${BLOCKLIST_CONF}"
+                bashio::log.info "  Whitelist applied: removed $(wc -l < "${wl_tmpfile}") domain pattern(s)"
+            fi
+            rm -f "${wl_tmpfile}"
+        fi
+    fi
+
     local blocked
     blocked=$(wc -l < "${BLOCKLIST_CONF}")
     bashio::log.info "Blocklists applied: ${blocked} domains blocked"
+}
+
+# Initialize local records from addon config on first run
+init_local_records() {
+    if [ ! -f "${LOCAL_RECORDS_FILE}" ]; then
+        # Seed from addon options if local_records is configured
+        if bashio::config.has_value 'local_records'; then
+            bashio::log.info "Seeding local records from addon config..."
+            local records="[]"
+            for record in $(bashio::jq '/data/options.json' '.local_records | keys[]'); do
+                local hostname ip
+                hostname=$(bashio::config "local_records[${record}].hostname")
+                ip=$(bashio::config "local_records[${record}].ip")
+                records=$(echo "${records}" | jq --arg h "${hostname}" --arg i "${ip}" '. + [{"hostname": $h, "ip": $i}]')
+            done
+            echo "${records}" > "${LOCAL_RECORDS_FILE}"
+            bashio::log.info "Initialized local records from addon config"
+        else
+            echo "[]" > "${LOCAL_RECORDS_FILE}"
+        fi
+    fi
+
+    # Write local_records.conf from JSON
+    local rec_count
+    rec_count=$(jq '. | length' "${LOCAL_RECORDS_FILE}")
+    > "${LOCAL_RECORDS_CONF}"
+
+    if [ "${rec_count}" != "0" ]; then
+        bashio::log.info "Writing ${rec_count} local DNS record(s)..."
+        for i in $(seq 0 $((rec_count - 1))); do
+            local hostname ip
+            hostname=$(jq -r ".[$i].hostname" "${LOCAL_RECORDS_FILE}")
+            ip=$(jq -r ".[$i].ip" "${LOCAL_RECORDS_FILE}")
+            bashio::log.info "  ${hostname} -> ${ip}"
+            echo "local-zone: \"${hostname}.\" redirect" >> "${LOCAL_RECORDS_CONF}"
+            echo "local-data: \"${hostname}. A ${ip}\"" >> "${LOCAL_RECORDS_CONF}"
+        done
+    fi
 }
 
 if bashio::config.true 'custom_config'; then
@@ -129,6 +192,24 @@ else
             echo "no"
         fi
     }
+
+    # Set up query log file path
+    LOG_FILE=""
+    if [ "${LOG_QUERIES}" = "true" ]; then
+        LOG_FILE="/data/unbound_queries.log"
+        bashio::log.info "Query logging enabled: ${LOG_FILE}"
+
+        # Log rotation: if log exceeds 50MB, rotate
+        if [ -f "${LOG_FILE}" ]; then
+            local log_size
+            log_size=$(stat -f%z "${LOG_FILE}" 2>/dev/null || stat -c%s "${LOG_FILE}" 2>/dev/null || echo 0)
+            if [ "${log_size}" -gt 52428800 ]; then
+                bashio::log.info "Rotating query log (${log_size} bytes)..."
+                mv "${LOG_FILE}" "${LOG_FILE}.old"
+                : > "${LOG_FILE}"
+            fi
+        fi
+    fi
 
     # Generate unbound configuration
     cat > /etc/unbound/unbound.conf << EOF
@@ -179,13 +260,14 @@ server:
 
     # Log settings
     verbosity: ${VERBOSITY}
-    logfile: ""
+    logfile: "${LOG_FILE}"
     log-queries: $(bool_to_yesno "$LOG_QUERIES")
     log-replies: $(bool_to_yesno "$LOG_QUERIES")
     log-servfail: yes
 
-    # Include blocklist
+    # Include blocklist and local records
     include: "${BLOCKLIST_CONF}"
+    include: "${LOCAL_RECORDS_CONF}"
 EOF
 
     # Add access control entries
@@ -210,21 +292,6 @@ EOF
     # DNSSEC validation disabled
     module-config: "iterator"
 EOF
-    fi
-
-    # Add local DNS records
-    if bashio::config.has_value 'local_records'; then
-        bashio::log.info "Configuring local DNS records..."
-        echo "" >> /etc/unbound/unbound.conf
-        echo "    # Local DNS records" >> /etc/unbound/unbound.conf
-
-        for record in $(bashio::jq '/data/options.json' '.local_records | keys[]'); do
-            hostname=$(bashio::config "local_records[${record}].hostname")
-            ip=$(bashio::config "local_records[${record}].ip")
-            bashio::log.info "  ${hostname} -> ${ip}"
-            echo "    local-zone: \"${hostname}.\" redirect" >> /etc/unbound/unbound.conf
-            echo "    local-data: \"${hostname}. A ${ip}\"" >> /etc/unbound/unbound.conf
-        done
     fi
 
     # Add remote-control section for unbound-control access
@@ -258,9 +325,10 @@ EOF
     fi
 fi
 
-# Initialize and apply blocklists
+# Initialize and apply blocklists, then local records
 init_blocklists
 apply_blocklists
+init_local_records
 
 # Validate configuration
 bashio::log.info "Validating Unbound configuration..."

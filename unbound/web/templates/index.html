@@ -5,31 +5,150 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Unbound DNS</title>
     <style>
+        :root {
+            --bg-body: #f4f4f4;
+            --bg-card: #fff;
+            --bg-input: #fff;
+            --text-primary: #333;
+            --text-secondary: #555;
+            --text-muted: #888;
+            --text-faint: #aaa;
+            --border-color: #ddd;
+            --border-light: #eee;
+            --shadow: rgba(0,0,0,0.1);
+            --accent: #4a90d9;
+            --accent-hover: #3a7bc8;
+            --danger: #d94a4a;
+            --danger-hover: #c83a3a;
+            --success: #4a9;
+            --success-hover: #398;
+            --status-success-bg: #e6f9e6;
+            --status-success-text: #2a7a2a;
+            --status-error-bg: #f9e6e6;
+            --status-error-text: #7a2a2a;
+            --bar-bg: #e9ecef;
+            --tab-bg: transparent;
+            --tab-active-bg: var(--accent);
+            --tab-active-text: #fff;
+            --tab-hover-bg: #e0e0e0;
+            --badge-bg: #e0e0e0;
+            --badge-text: #555;
+        }
+
+        [data-theme="dark"] {
+            --bg-body: #1a1a2e;
+            --bg-card: #16213e;
+            --bg-input: #0f3460;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --text-muted: #808080;
+            --text-faint: #606060;
+            --border-color: #2a2a4a;
+            --border-light: #222244;
+            --shadow: rgba(0,0,0,0.3);
+            --accent: #4a90d9;
+            --accent-hover: #5aa0e9;
+            --danger: #e05555;
+            --danger-hover: #f06565;
+            --success: #4a9;
+            --success-hover: #5bba;
+            --status-success-bg: #1a3a1a;
+            --status-success-text: #6cd96c;
+            --status-error-bg: #3a1a1a;
+            --status-error-text: #d96c6c;
+            --bar-bg: #2a2a4a;
+            --tab-bg: transparent;
+            --tab-active-bg: var(--accent);
+            --tab-active-text: #fff;
+            --tab-hover-bg: #2a2a4a;
+            --badge-bg: #2a2a4a;
+            --badge-text: #b0b0b0;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #f4f4f4;
-            color: #333;
+            background: var(--bg-body);
+            color: var(--text-primary);
             padding: 20px;
         }
-        h1 { margin-bottom: 20px; font-size: 1.5rem; }
-        h2 { margin-bottom: 12px; font-size: 1.1rem; color: #555; }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        h1 { font-size: 1.5rem; }
+        h2 { margin-bottom: 12px; font-size: 1.1rem; color: var(--text-secondary); }
+
+        .dark-toggle {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+        }
+
+        /* Tab bar */
+        .tab-bar {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            border-bottom: 2px solid var(--border-light);
+            padding-bottom: 0;
+        }
+        .tab {
+            padding: 8px 16px;
+            border: none;
+            background: var(--tab-bg);
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-radius: 6px 6px 0 0;
+            position: relative;
+            bottom: -2px;
+            border-bottom: 2px solid transparent;
+        }
+        .tab:hover { background: var(--tab-hover-bg); }
+        .tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+            background: var(--tab-bg);
+        }
+        .tab .badge {
+            display: inline-block;
+            background: var(--badge-bg);
+            color: var(--badge-text);
+            border-radius: 10px;
+            padding: 1px 6px;
+            font-size: 0.7rem;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
 
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 16px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         .stat-card {
-            background: #fff;
+            background: var(--bg-card);
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px var(--shadow);
         }
         .stat-card .label {
             font-size: 0.8rem;
-            color: #888;
+            color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -40,10 +159,10 @@
         }
 
         .section {
-            background: #fff;
+            background: var(--bg-card);
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px var(--shadow);
             margin-bottom: 20px;
         }
 
@@ -55,11 +174,13 @@
         .add-form input {
             flex: 1;
             padding: 8px 12px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             font-size: 0.9rem;
+            background: var(--bg-input);
+            color: var(--text-primary);
         }
-        .add-form input:focus { outline: none; border-color: #4a90d9; }
+        .add-form input:focus { outline: none; border-color: var(--accent); }
 
         button {
             padding: 8px 16px;
@@ -69,12 +190,14 @@
             font-size: 0.85rem;
             font-weight: 500;
         }
-        .btn-primary { background: #4a90d9; color: #fff; }
-        .btn-primary:hover { background: #3a7bc8; }
-        .btn-danger { background: #d94a4a; color: #fff; }
-        .btn-danger:hover { background: #c83a3a; }
-        .btn-success { background: #4a9; color: #fff; }
-        .btn-success:hover { background: #398; }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { background: var(--danger-hover); }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-success:hover { background: var(--success-hover); }
+        .btn-secondary { background: var(--badge-bg); color: var(--text-primary); }
+        .btn-secondary:hover { opacity: 0.8; }
         .btn-sm { padding: 4px 10px; font-size: 0.8rem; }
 
         table {
@@ -84,11 +207,11 @@
         th, td {
             text-align: left;
             padding: 10px 12px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border-light);
         }
         th {
             font-size: 0.8rem;
-            color: #888;
+            color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -108,65 +231,269 @@
             display: none;
             font-size: 0.9rem;
         }
-        .status-msg.success { display: block; background: #e6f9e6; color: #2a7a2a; }
-        .status-msg.error { display: block; background: #f9e6e6; color: #7a2a2a; }
+        .status-msg.success { display: block; background: var(--status-success-bg); color: var(--status-success-text); }
+        .status-msg.error { display: block; background: var(--status-error-bg); color: var(--status-error-text); }
 
         .empty-state {
             text-align: center;
             padding: 30px;
-            color: #999;
+            color: var(--text-muted);
         }
 
-        .uptime { font-size: 0.75rem; color: #aaa; }
+        .uptime { font-size: 0.75rem; color: var(--text-faint); margin-top: 10px; }
+
+        /* Query log filter */
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .filter-bar input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            background: var(--bg-input);
+            color: var(--text-primary);
+        }
+        .filter-bar input:focus { outline: none; border-color: var(--accent); }
+
+        /* Top domains bar chart */
+        .bar-chart { margin-bottom: 20px; }
+        .bar-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+            font-size: 0.8rem;
+        }
+        .bar-label {
+            width: 200px;
+            text-align: right;
+            padding-right: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-secondary);
+        }
+        .bar-track {
+            flex: 1;
+            background: var(--bar-bg);
+            border-radius: 3px;
+            height: 18px;
+            position: relative;
+        }
+        .bar-fill {
+            background: var(--accent);
+            height: 100%;
+            border-radius: 3px;
+            min-width: 2px;
+        }
+        .bar-count {
+            width: 50px;
+            padding-left: 8px;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* Cache section */
+        .cache-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+        .cache-controls .field { display: flex; flex-direction: column; gap: 4px; }
+        .cache-controls .field label { font-size: 0.8rem; color: var(--text-muted); }
+        .cache-controls .field input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            background: var(--bg-input);
+            color: var(--text-primary);
+            width: 250px;
+        }
+        .cache-controls .field input:focus { outline: none; border-color: var(--accent); }
+
+        .text-error { color: var(--danger); }
+        .text-muted { color: var(--text-muted); font-size: 0.8rem; }
+
+        .query-table-wrap { max-height: 500px; overflow-y: auto; }
     </style>
+    <script>
+        // Restore theme before render to prevent flash
+        (function() {
+            var t = localStorage.getItem("unbound-theme");
+            if (t === "dark") document.documentElement.setAttribute("data-theme", "dark");
+        })();
+    </script>
 </head>
 <body>
-    <h1>Unbound DNS Resolver</h1>
+    <div class="header-row">
+        <h1>Unbound DNS Resolver</h1>
+        <button class="dark-toggle" onclick="toggleDarkMode()" id="theme-btn">Dark Mode</button>
+    </div>
 
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="label">Total Queries</div>
-            <div class="value" id="total-queries">--</div>
+    <nav class="tab-bar" id="tab-bar">
+        <button class="tab active" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="blocklists">Blocklists</button>
+        <button class="tab" data-tab="whitelist">Whitelist</button>
+        <button class="tab" data-tab="local-records">Local Records</button>
+        <button class="tab" data-tab="query-log">Query Log</button>
+        <button class="tab" data-tab="cache">Cache</button>
+    </nav>
+
+    <!-- Tab: Overview -->
+    <div class="tab-content active" id="tab-overview">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="label">Total Queries</div>
+                <div class="value" id="total-queries">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Cache Hit Rate</div>
+                <div class="value" id="cache-hit-rate">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Cache Hits</div>
+                <div class="value" id="cache-hits">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Blocked Domains</div>
+                <div class="value" id="blocked-domains">--</div>
+            </div>
         </div>
-        <div class="stat-card">
-            <div class="label">Cache Hit Rate</div>
-            <div class="value" id="cache-hit-rate">--</div>
-        </div>
-        <div class="stat-card">
-            <div class="label">Cache Hits</div>
-            <div class="value" id="cache-hits">--</div>
-        </div>
-        <div class="stat-card">
-            <div class="label">Blocked Domains</div>
-            <div class="value" id="blocked-domains">--</div>
+        <p class="uptime">Uptime: <span id="uptime">--</span>s</p>
+    </div>
+
+    <!-- Tab: Blocklists -->
+    <div class="tab-content" id="tab-blocklists">
+        <div class="section">
+            <h2>Blocklists</h2>
+            <div id="blocklist-status" class="status-msg"></div>
+            <div class="add-form">
+                <input type="text" id="new-url" placeholder="https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts">
+                <button class="btn-primary" onclick="addBlocklist()">Add</button>
+            </div>
+            <div class="actions-bar">
+                <button class="btn-success" onclick="refreshBlocklists()">Refresh &amp; Apply All</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>URL</th>
+                        <th>Domains</th>
+                        <th>Last Refresh</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="blocklist-body">
+                    <tr><td colspan="5" class="empty-state">No blocklists configured</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
-    <div class="section">
-        <h2>Blocklists</h2>
-        <div id="status-msg" class="status-msg"></div>
-        <div class="add-form">
-            <input type="text" id="new-url" placeholder="https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts">
-            <button class="btn-primary" onclick="addBlocklist()">Add</button>
+    <!-- Tab: Whitelist -->
+    <div class="tab-content" id="tab-whitelist">
+        <div class="section">
+            <h2>Whitelisted Domains</h2>
+            <p class="text-muted" style="margin-bottom:12px">Whitelisted domains are excluded from blocklists when refreshed.</p>
+            <div id="whitelist-status" class="status-msg"></div>
+            <div class="add-form">
+                <input type="text" id="new-whitelist-domain" placeholder="example.com">
+                <button class="btn-primary" onclick="addWhitelist()">Add</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Domain</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="whitelist-body">
+                    <tr><td colspan="3" class="empty-state">No whitelisted domains</td></tr>
+                </tbody>
+            </table>
         </div>
-        <div class="actions-bar">
-            <button class="btn-success" onclick="refreshBlocklists()">Refresh &amp; Apply All</button>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>URL</th>
-                    <th>Action</th>
-                </tr>
-            </thead>
-            <tbody id="blocklist-body">
-                <tr><td colspan="3" class="empty-state">No blocklists configured</td></tr>
-            </tbody>
-        </table>
     </div>
 
-    <p class="uptime">Uptime: <span id="uptime">--</span>s</p>
+    <!-- Tab: Local Records -->
+    <div class="tab-content" id="tab-local-records">
+        <div class="section">
+            <h2>Local DNS Records</h2>
+            <p class="text-muted" style="margin-bottom:12px">Custom hostname-to-IP mappings. Changes take effect immediately.</p>
+            <div id="local-records-status" class="status-msg"></div>
+            <div class="add-form">
+                <input type="text" id="new-record-hostname" placeholder="myserver.local">
+                <input type="text" id="new-record-ip" placeholder="192.168.1.100" style="max-width:200px">
+                <button class="btn-primary" onclick="addLocalRecord()">Add</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Hostname</th>
+                        <th>IP Address</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="local-records-body">
+                    <tr><td colspan="4" class="empty-state">No local records</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Tab: Query Log -->
+    <div class="tab-content" id="tab-query-log">
+        <div class="section">
+            <h2>Top Queried Domains</h2>
+            <div id="top-domains-chart" class="bar-chart">
+                <p class="empty-state">Loading...</p>
+            </div>
+        </div>
+        <div class="section">
+            <h2>Recent Queries</h2>
+            <div class="filter-bar">
+                <input type="text" id="query-filter" placeholder="Filter by domain or client..." oninput="renderQueryLog()">
+            </div>
+            <div class="query-table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Client</th>
+                            <th>Domain</th>
+                            <th>Type</th>
+                        </tr>
+                    </thead>
+                    <tbody id="query-log-body">
+                        <tr><td colspan="4" class="empty-state">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Cache -->
+    <div class="tab-content" id="tab-cache">
+        <div class="section">
+            <h2>Cache Controls</h2>
+            <div id="cache-status" class="status-msg"></div>
+            <div class="cache-controls">
+                <div class="field">
+                    <label>Flush a specific domain</label>
+                    <input type="text" id="flush-domain-input" placeholder="example.com">
+                </div>
+                <button class="btn-primary" onclick="flushDomain()">Flush Domain</button>
+                <button class="btn-danger" onclick="flushAllCache()">Flush Entire Cache</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         const BASE = "{{ ingress_path }}";
@@ -175,18 +502,87 @@
             return BASE + path;
         }
 
-        function showStatus(msg, type) {
-            const el = document.getElementById("status-msg");
+        // --- Dark mode ---
+
+        function toggleDarkMode() {
+            var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+            if (isDark) {
+                document.documentElement.removeAttribute("data-theme");
+                localStorage.setItem("unbound-theme", "light");
+            } else {
+                document.documentElement.setAttribute("data-theme", "dark");
+                localStorage.setItem("unbound-theme", "dark");
+            }
+            updateThemeButton();
+        }
+
+        function updateThemeButton() {
+            var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+            document.getElementById("theme-btn").textContent = isDark ? "Light Mode" : "Dark Mode";
+        }
+        updateThemeButton();
+
+        // --- Tab navigation ---
+
+        function showTab(tabId) {
+            document.querySelectorAll(".tab").forEach(function(t) { t.classList.remove("active"); });
+            document.querySelectorAll(".tab-content").forEach(function(c) { c.classList.remove("active"); });
+            var btn = document.querySelector('.tab[data-tab="' + tabId + '"]');
+            if (btn) btn.classList.add("active");
+            var content = document.getElementById("tab-" + tabId);
+            if (content) content.classList.add("active");
+            localStorage.setItem("unbound-active-tab", tabId);
+
+            // Lazy-load data for tabs
+            if (tabId === "query-log" && !queryLogLoaded) {
+                fetchQueryLog();
+                fetchTopDomains();
+            }
+        }
+
+        document.getElementById("tab-bar").addEventListener("click", function(e) {
+            var tab = e.target.closest(".tab");
+            if (tab && tab.dataset.tab) showTab(tab.dataset.tab);
+        });
+
+        // Restore saved tab
+        var savedTab = localStorage.getItem("unbound-active-tab");
+        if (savedTab) showTab(savedTab);
+
+        // --- Status messages ---
+
+        function showSectionStatus(sectionId, msg, type) {
+            var el = document.getElementById(sectionId);
+            if (!el) return;
             el.textContent = msg;
             el.className = "status-msg " + type;
-            setTimeout(() => { el.className = "status-msg"; }, 5000);
+            setTimeout(function() { el.className = "status-msg"; }, 5000);
         }
+
+        function escapeHtml(text) {
+            var d = document.createElement("div");
+            d.textContent = text;
+            return d.innerHTML;
+        }
+
+        function formatTime(ts) {
+            var d = new Date(ts * 1000);
+            return d.toLocaleTimeString();
+        }
+
+        function formatDate(ts) {
+            if (!ts) return "--";
+            var d = new Date(ts * 1000);
+            return d.toLocaleDateString() + " " + d.toLocaleTimeString();
+        }
+
+        // --- Stats ---
 
         async function fetchStats() {
             try {
-                const res = await fetch(apiUrl("/api/stats"));
+                var res = await fetch(apiUrl("/api/stats"));
                 if (!res.ok) throw new Error("Stats fetch failed");
-                const data = await res.json();
+                var data = await res.json();
                 document.getElementById("total-queries").textContent = data.total_queries.toLocaleString();
                 document.getElementById("cache-hits").textContent = data.cache_hits.toLocaleString();
                 document.getElementById("cache-hit-rate").textContent = data.cache_hit_rate + "%";
@@ -197,100 +593,354 @@
             }
         }
 
+        // --- Blocklists ---
+
         async function fetchBlocklists() {
             try {
-                const res = await fetch(apiUrl("/api/blocklists"));
+                var res = await fetch(apiUrl("/api/blocklists"));
                 if (!res.ok) throw new Error("Blocklist fetch failed");
-                const data = await res.json();
-                const tbody = document.getElementById("blocklist-body");
+                var data = await res.json();
+                var tbody = document.getElementById("blocklist-body");
                 if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No blocklists configured</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No blocklists configured</td></tr>';
                     return;
                 }
-                tbody.innerHTML = data.map((url, i) =>
-                    `<tr>
-                        <td>${i}</td>
-                        <td class="url-cell">${escapeHtml(url)}</td>
-                        <td><button class="btn-danger btn-sm" onclick="removeBlocklist(${i})">Remove</button></td>
-                    </tr>`
-                ).join("");
+                tbody.innerHTML = data.map(function(item, i) {
+                    var domains = item.domains !== null ? item.domains.toLocaleString() : "--";
+                    var lastRefresh = item.last_refresh ? formatDate(item.last_refresh) : "--";
+                    var errorHtml = item.error ? ' <span class="text-error" title="' + escapeHtml(item.error) + '">error</span>' : '';
+                    return '<tr>' +
+                        '<td>' + i + '</td>' +
+                        '<td class="url-cell">' + escapeHtml(item.url) + errorHtml + '</td>' +
+                        '<td>' + domains + '</td>' +
+                        '<td>' + lastRefresh + '</td>' +
+                        '<td><button class="btn-danger btn-sm" onclick="removeBlocklist(' + i + ')">Remove</button></td>' +
+                        '</tr>';
+                }).join("");
             } catch (e) {
                 console.error("Failed to fetch blocklists:", e);
             }
         }
 
-        function escapeHtml(text) {
-            const d = document.createElement("div");
-            d.textContent = text;
-            return d.innerHTML;
-        }
-
         async function addBlocklist() {
-            const input = document.getElementById("new-url");
-            const url = input.value.trim();
+            var input = document.getElementById("new-url");
+            var url = input.value.trim();
             if (!url) return;
             try {
-                const res = await fetch(apiUrl("/api/blocklists"), {
+                var res = await fetch(apiUrl("/api/blocklists"), {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({url})
+                    body: JSON.stringify({url: url})
                 });
-                const data = await res.json();
+                var data = await res.json();
                 if (res.ok) {
                     input.value = "";
-                    showStatus("Blocklist added. Click 'Refresh & Apply All' to activate.", "success");
+                    showSectionStatus("blocklist-status", "Blocklist added. Click 'Refresh & Apply All' to activate.", "success");
                     fetchBlocklists();
                 } else {
-                    showStatus(data.error || "Failed to add", "error");
+                    showSectionStatus("blocklist-status", data.error || "Failed to add", "error");
                 }
             } catch (e) {
-                showStatus("Failed to add blocklist: " + e.message, "error");
+                showSectionStatus("blocklist-status", "Failed to add blocklist: " + e.message, "error");
             }
         }
 
         async function removeBlocklist(idx) {
             try {
-                const res = await fetch(apiUrl("/api/blocklists/" + idx), {method: "DELETE"});
-                const data = await res.json();
+                var res = await fetch(apiUrl("/api/blocklists/" + idx), {method: "DELETE"});
+                var data = await res.json();
                 if (res.ok) {
-                    showStatus("Blocklist removed. Click 'Refresh & Apply All' to update.", "success");
+                    showSectionStatus("blocklist-status", "Blocklist removed. Click 'Refresh & Apply All' to update.", "success");
                     fetchBlocklists();
                 } else {
-                    showStatus(data.error || "Failed to remove", "error");
+                    showSectionStatus("blocklist-status", data.error || "Failed to remove", "error");
                 }
             } catch (e) {
-                showStatus("Failed to remove blocklist: " + e.message, "error");
+                showSectionStatus("blocklist-status", "Failed to remove blocklist: " + e.message, "error");
             }
         }
 
         async function refreshBlocklists() {
-            showStatus("Downloading blocklists and reloading Unbound...", "success");
+            showSectionStatus("blocklist-status", "Downloading blocklists and reloading Unbound...", "success");
             try {
-                const res = await fetch(apiUrl("/api/blocklists/refresh"), {method: "POST"});
-                const data = await res.json();
+                var res = await fetch(apiUrl("/api/blocklists/refresh"), {method: "POST"});
+                var data = await res.json();
                 if (res.ok) {
-                    let msg = `Blocklists applied: ${data.domains_blocked.toLocaleString()} domains blocked.`;
+                    var msg = "Blocklists applied: " + data.domains_blocked.toLocaleString() + " domains blocked.";
                     if (data.errors && data.errors.length > 0) {
-                        msg += ` (${data.errors.length} error(s))`;
+                        msg += " (" + data.errors.length + " error(s))";
                     }
-                    showStatus(msg, "success");
+                    showSectionStatus("blocklist-status", msg, "success");
                     fetchStats();
+                    fetchBlocklists();
                 } else {
-                    showStatus(data.error || "Refresh failed", "error");
+                    showSectionStatus("blocklist-status", data.error || "Refresh failed", "error");
                 }
             } catch (e) {
-                showStatus("Refresh failed: " + e.message, "error");
+                showSectionStatus("blocklist-status", "Refresh failed: " + e.message, "error");
             }
         }
 
-        // Allow Enter key to add blocklist
-        document.getElementById("new-url").addEventListener("keydown", (e) => {
+        // --- Whitelist ---
+
+        async function fetchWhitelist() {
+            try {
+                var res = await fetch(apiUrl("/api/whitelist"));
+                if (!res.ok) throw new Error("Whitelist fetch failed");
+                var data = await res.json();
+                var tbody = document.getElementById("whitelist-body");
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No whitelisted domains</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.map(function(domain, i) {
+                    return '<tr>' +
+                        '<td>' + i + '</td>' +
+                        '<td>' + escapeHtml(domain) + '</td>' +
+                        '<td><button class="btn-danger btn-sm" onclick="removeWhitelist(' + i + ')">Remove</button></td>' +
+                        '</tr>';
+                }).join("");
+            } catch (e) {
+                console.error("Failed to fetch whitelist:", e);
+            }
+        }
+
+        async function addWhitelist() {
+            var input = document.getElementById("new-whitelist-domain");
+            var domain = input.value.trim();
+            if (!domain) return;
+            try {
+                var res = await fetch(apiUrl("/api/whitelist"), {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({domain: domain})
+                });
+                var data = await res.json();
+                if (res.ok) {
+                    input.value = "";
+                    showSectionStatus("whitelist-status", "Domain whitelisted. Refresh blocklists to apply.", "success");
+                    fetchWhitelist();
+                } else {
+                    showSectionStatus("whitelist-status", data.error || "Failed to add", "error");
+                }
+            } catch (e) {
+                showSectionStatus("whitelist-status", "Failed: " + e.message, "error");
+            }
+        }
+
+        async function removeWhitelist(idx) {
+            try {
+                var res = await fetch(apiUrl("/api/whitelist/" + idx), {method: "DELETE"});
+                var data = await res.json();
+                if (res.ok) {
+                    showSectionStatus("whitelist-status", "Domain removed. Refresh blocklists to apply.", "success");
+                    fetchWhitelist();
+                } else {
+                    showSectionStatus("whitelist-status", data.error || "Failed to remove", "error");
+                }
+            } catch (e) {
+                showSectionStatus("whitelist-status", "Failed: " + e.message, "error");
+            }
+        }
+
+        // --- Local Records ---
+
+        async function fetchLocalRecords() {
+            try {
+                var res = await fetch(apiUrl("/api/local-records"));
+                if (!res.ok) throw new Error("Local records fetch failed");
+                var data = await res.json();
+                var tbody = document.getElementById("local-records-body");
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No local records</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.map(function(rec, i) {
+                    return '<tr>' +
+                        '<td>' + i + '</td>' +
+                        '<td>' + escapeHtml(rec.hostname) + '</td>' +
+                        '<td>' + escapeHtml(rec.ip) + '</td>' +
+                        '<td><button class="btn-danger btn-sm" onclick="removeLocalRecord(' + i + ')">Remove</button></td>' +
+                        '</tr>';
+                }).join("");
+            } catch (e) {
+                console.error("Failed to fetch local records:", e);
+            }
+        }
+
+        async function addLocalRecord() {
+            var hostnameInput = document.getElementById("new-record-hostname");
+            var ipInput = document.getElementById("new-record-ip");
+            var hostname = hostnameInput.value.trim();
+            var ip = ipInput.value.trim();
+            if (!hostname || !ip) return;
+            try {
+                var res = await fetch(apiUrl("/api/local-records"), {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({hostname: hostname, ip: ip})
+                });
+                var data = await res.json();
+                if (res.ok) {
+                    hostnameInput.value = "";
+                    ipInput.value = "";
+                    showSectionStatus("local-records-status", "Record added and Unbound reloaded.", "success");
+                    fetchLocalRecords();
+                } else {
+                    showSectionStatus("local-records-status", data.error || "Failed to add", "error");
+                }
+            } catch (e) {
+                showSectionStatus("local-records-status", "Failed: " + e.message, "error");
+            }
+        }
+
+        async function removeLocalRecord(idx) {
+            try {
+                var res = await fetch(apiUrl("/api/local-records/" + idx), {method: "DELETE"});
+                var data = await res.json();
+                if (res.ok) {
+                    showSectionStatus("local-records-status", "Record removed and Unbound reloaded.", "success");
+                    fetchLocalRecords();
+                } else {
+                    showSectionStatus("local-records-status", data.error || "Failed to remove", "error");
+                }
+            } catch (e) {
+                showSectionStatus("local-records-status", "Failed: " + e.message, "error");
+            }
+        }
+
+        // --- Query Log ---
+
+        var queryLogData = [];
+        var queryLogLoaded = false;
+
+        async function fetchQueryLog() {
+            try {
+                var res = await fetch(apiUrl("/api/query-log"));
+                if (!res.ok) throw new Error("Query log fetch failed");
+                queryLogData = await res.json();
+                queryLogLoaded = true;
+                renderQueryLog();
+            } catch (e) {
+                console.error("Failed to fetch query log:", e);
+                document.getElementById("query-log-body").innerHTML =
+                    '<tr><td colspan="4" class="empty-state">Query logging may not be enabled. Set log_queries to true in addon config.</td></tr>';
+                queryLogLoaded = true;
+            }
+        }
+
+        function renderQueryLog() {
+            var filter = (document.getElementById("query-filter").value || "").toLowerCase();
+            var filtered = queryLogData;
+            if (filter) {
+                filtered = queryLogData.filter(function(e) {
+                    return e.domain.toLowerCase().indexOf(filter) !== -1 ||
+                           e.client.toLowerCase().indexOf(filter) !== -1;
+                });
+            }
+            var tbody = document.getElementById("query-log-body");
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No queries found</td></tr>';
+                return;
+            }
+            // Show most recent first, limit to 200
+            var shown = filtered.slice(-200).reverse();
+            tbody.innerHTML = shown.map(function(e) {
+                return '<tr>' +
+                    '<td>' + formatTime(e.timestamp) + '</td>' +
+                    '<td>' + escapeHtml(e.client) + '</td>' +
+                    '<td>' + escapeHtml(e.domain) + '</td>' +
+                    '<td>' + escapeHtml(e.type) + '</td>' +
+                    '</tr>';
+            }).join("");
+        }
+
+        async function fetchTopDomains() {
+            try {
+                var res = await fetch(apiUrl("/api/top-domains"));
+                if (!res.ok) throw new Error("Top domains fetch failed");
+                var data = await res.json();
+                var container = document.getElementById("top-domains-chart");
+                if (!data.length) {
+                    container.innerHTML = '<p class="empty-state">No query data available</p>';
+                    return;
+                }
+                var maxCount = data[0].count;
+                container.innerHTML = data.map(function(item) {
+                    var pct = Math.round(item.count / maxCount * 100);
+                    return '<div class="bar-row">' +
+                        '<div class="bar-label" title="' + escapeHtml(item.domain) + '">' + escapeHtml(item.domain) + '</div>' +
+                        '<div class="bar-track"><div class="bar-fill" style="width:' + pct + '%"></div></div>' +
+                        '<div class="bar-count">' + item.count + '</div>' +
+                        '</div>';
+                }).join("");
+            } catch (e) {
+                console.error("Failed to fetch top domains:", e);
+                document.getElementById("top-domains-chart").innerHTML =
+                    '<p class="empty-state">Could not load top domains</p>';
+            }
+        }
+
+        // --- Cache ---
+
+        async function flushDomain() {
+            var input = document.getElementById("flush-domain-input");
+            var domain = input.value.trim();
+            if (!domain) return;
+            try {
+                var res = await fetch(apiUrl("/api/cache/flush-domain"), {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({domain: domain})
+                });
+                var data = await res.json();
+                if (res.ok) {
+                    input.value = "";
+                    showSectionStatus("cache-status", "Cache flushed for " + domain, "success");
+                } else {
+                    showSectionStatus("cache-status", data.error || "Flush failed", "error");
+                }
+            } catch (e) {
+                showSectionStatus("cache-status", "Flush failed: " + e.message, "error");
+            }
+        }
+
+        async function flushAllCache() {
+            if (!confirm("Flush the entire DNS cache? This will temporarily slow down DNS resolution.")) return;
+            try {
+                var res = await fetch(apiUrl("/api/cache/flush"), {method: "POST"});
+                var data = await res.json();
+                if (res.ok) {
+                    showSectionStatus("cache-status", "Entire DNS cache flushed.", "success");
+                } else {
+                    showSectionStatus("cache-status", data.error || "Flush failed", "error");
+                }
+            } catch (e) {
+                showSectionStatus("cache-status", "Flush failed: " + e.message, "error");
+            }
+        }
+
+        // --- Enter key handlers ---
+
+        document.getElementById("new-url").addEventListener("keydown", function(e) {
             if (e.key === "Enter") addBlocklist();
         });
+        document.getElementById("new-whitelist-domain").addEventListener("keydown", function(e) {
+            if (e.key === "Enter") addWhitelist();
+        });
+        document.getElementById("new-record-ip").addEventListener("keydown", function(e) {
+            if (e.key === "Enter") addLocalRecord();
+        });
+        document.getElementById("flush-domain-input").addEventListener("keydown", function(e) {
+            if (e.key === "Enter") flushDomain();
+        });
 
-        // Initial load
+        // --- Initial load ---
+
         fetchStats();
         fetchBlocklists();
+        fetchWhitelist();
+        fetchLocalRecords();
 
         // Auto-refresh stats every 10 seconds
         setInterval(fetchStats, 10000);
