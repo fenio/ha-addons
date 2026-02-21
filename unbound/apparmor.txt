@@ -59,6 +59,10 @@ profile unbound flags=(attach_disconnected,mediate_deleted) {
   /data/** rw,
   /data/ r,
 
+  # Addon config (addon_config:rw mount)
+  /config/ r,
+  /config/** rw,
+
   # System files
   /etc/passwd r,
   /etc/group r,
