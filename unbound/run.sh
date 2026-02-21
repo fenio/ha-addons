@@ -5,7 +5,7 @@ set -e
 bashio::log.level "$(bashio::config 'log_level')"
 bashio::log.info "Starting Unbound DNS resolver ($(bashio::addon.version))..."
 
-ADDON_SLUG=$(bashio::addon.slug)
+ADDON_SLUG="${HOSTNAME}"
 CUSTOM_CONFIG_PATH="/addon_configs/${ADDON_SLUG}/unbound.conf"
 bashio::log.debug "Addon slug: ${ADDON_SLUG}"
 BLOCKLISTS_FILE="/data/blocklists.json"
