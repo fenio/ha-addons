@@ -35,7 +35,7 @@ All settings are managed through the web UI's **Settings** tab. Changes are appl
 If the web UI doesn't cover your needs, you can provide your own `unbound.conf`:
 
 1. Enable **Custom Config** in the web UI Settings tab
-2. Place your `unbound.conf` file at `/addon_configs/unbound/unbound.conf`
+2. Place your `unbound.conf` file at `/addon_configs/<slug>_unbound/unbound.conf` (the exact path is shown in the addon log on startup)
 3. Restart the addon
 
 When custom config mode is enabled, all other settings in the Settings tab are ignored — the addon uses your file as-is.

@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.24.2-ha17] - 2026/02/21
+
+- Fix custom config path: detect addon slug dynamically instead of hardcoding
+
 ## [1.24.2-ha16] - 2026/02/21
 
 - Extended Overview dashboard with queries/sec, cache misses, avg recursion time, prefetch count

@@ -5,7 +5,9 @@ set -e
 bashio::log.level "$(bashio::config 'log_level')"
 bashio::log.info "Starting Unbound DNS resolver ($(bashio::addon.version))..."
 
-CUSTOM_CONFIG_PATH="/addon_configs/unbound/unbound.conf"
+ADDON_SLUG=$(bashio::addon.slug)
+CUSTOM_CONFIG_PATH="/addon_configs/${ADDON_SLUG}/unbound.conf"
+bashio::log.debug "Addon slug: ${ADDON_SLUG}"
 BLOCKLISTS_FILE="/data/blocklists.json"
 BLOCKLIST_CONF="/etc/unbound/blocklist.conf"
 WHITELIST_FILE="/data/whitelist.json"
@@ -149,7 +151,7 @@ if jq -e '.custom_config == true' /data/config.json >/dev/null 2>&1; then
 
     if [ ! -f "${CUSTOM_CONFIG_PATH}" ]; then
         bashio::log.error "Custom config enabled but ${CUSTOM_CONFIG_PATH} not found!"
-        bashio::log.error "Place your unbound.conf in the addon_configs/unbound/ directory."
+        bashio::log.error "Place your unbound.conf in the addon_configs/${ADDON_SLUG}/ directory."
         exit 1
     fi
 
