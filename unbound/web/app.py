@@ -25,6 +25,8 @@ WHITELIST_FILE = "/data/whitelist.json"
 LOCAL_RECORDS_FILE = "/data/local_records.json"
 LOCAL_RECORDS_CONF = "/etc/unbound/local_records.conf"
 QUERY_LOG_FILE = "/data/unbound_queries.log"
+CUSTOM_CONFIG_WARNING_FILE = "/data/custom_config_warning.txt"
+CUSTOM_CONFIG_PATH = "/config/unbound.conf"
 
 _BLOCKLIST_SKIP_DOMAINS = frozenset({
     "localhost", "localhost.localdomain", "local", "broadcasthost",
@@ -543,7 +545,11 @@ def api_top_domains():
 def api_config_get():
     """Return current config and schema for the Settings UI."""
     config = config_gen.load_config()
-    return jsonify({"config": config, "schema": config_gen.CONFIG_SCHEMA})
+    result = {"config": config, "schema": config_gen.CONFIG_SCHEMA}
+    if os.path.exists(CUSTOM_CONFIG_WARNING_FILE):
+        with open(CUSTOM_CONFIG_WARNING_FILE, "r") as f:
+            result["custom_config_warning"] = f.read().strip()
+    return jsonify(result)
 
 
 @app.route("/api/config", methods=["PUT"])
@@ -560,6 +566,38 @@ def api_config_put():
     result = config_gen.apply_config(current)
     status_code = 200 if result["ok"] else 400
     return jsonify(result), status_code
+
+
+@app.route("/api/config/validate-custom", methods=["POST"])
+def api_config_validate_custom():
+    """Validate the user's custom unbound.conf without restarting."""
+    import shutil
+    import tempfile
+
+    if not os.path.exists(CUSTOM_CONFIG_PATH):
+        return jsonify({
+            "ok": False,
+            "message": f"Custom config file not found at {CUSTOM_CONFIG_PATH}",
+        })
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".conf", delete=False) as tmp:
+            tmp_path = tmp.name
+            shutil.copy2(CUSTOM_CONFIG_PATH, tmp_path)
+
+        result = subprocess.run(
+            ["unbound-checkconf", tmp_path],
+            capture_output=True, text=True, timeout=10,
+        )
+        os.unlink(tmp_path)
+
+        if result.returncode == 0:
+            return jsonify({"ok": True, "message": "Configuration is valid."})
+        else:
+            output = (result.stdout + result.stderr).strip()
+            return jsonify({"ok": False, "message": output})
+    except Exception as e:
+        return jsonify({"ok": False, "message": str(e)})
 
 
 # --- Blocklist auto-refresh ---

@@ -26,6 +26,9 @@
             --status-success-text: #2a7a2a;
             --status-error-bg: #f9e6e6;
             --status-error-text: #7a2a2a;
+            --status-warning-bg: #fff3cd;
+            --status-warning-text: #856404;
+            --status-warning-border: #ffc107;
             --bar-bg: #e9ecef;
             --tab-bg: transparent;
             --tab-active-bg: var(--accent);
@@ -56,6 +59,9 @@
             --status-success-text: #6cd96c;
             --status-error-bg: #3a1a1a;
             --status-error-text: #d96c6c;
+            --status-warning-bg: #3a3000;
+            --status-warning-text: #e0c060;
+            --status-warning-border: #7a6520;
             --bar-bg: #2a2a4a;
             --tab-bg: transparent;
             --tab-active-bg: var(--accent);
@@ -651,11 +657,14 @@
         <!-- Custom Config -->
         <div class="section">
             <h2>Custom Config</h2>
+            <div id="custom-config-warning" class="status-msg" style="display:none;background:var(--status-warning-bg);color:var(--status-warning-text);border:1px solid var(--status-warning-border);"></div>
             <div class="setting-row">
                 <div class="setting-label">Use custom unbound.conf <span class="restart-badge">restart required</span></div>
                 <div class="setting-input">
                     <label class="toggle"><input type="checkbox" id="cfg-custom_config"><span class="toggle-slider"></span></label>
-                    <p class="text-muted" style="margin-top:6px">When enabled, place your config at <code>/addon_configs/&lt;slug&gt;_unbound/unbound.conf</code> (check addon log for exact path). All settings below are ignored.</p>
+                    <p class="text-muted" style="margin-top:6px">When enabled, place your config at the addon's <code>/config</code> mount (host path: <code>/addon_configs/&lt;slug&gt;_unbound/unbound.conf</code>). All settings below are ignored.</p>
+                    <button class="btn-primary btn-sm" style="margin-top:8px" onclick="validateCustomConfig()">Validate Custom Config</button>
+                    <div id="custom-config-validate-result" class="status-msg" style="margin-top:8px"></div>
                 </div>
             </div>
         </div>
@@ -1292,6 +1301,15 @@
                 settingsSchema = data.schema;
                 renderSettings(data.config, data.schema);
                 settingsLoaded = true;
+
+                // Show custom config warning banner if present
+                var warningEl = document.getElementById("custom-config-warning");
+                if (data.custom_config_warning) {
+                    warningEl.textContent = data.custom_config_warning;
+                    warningEl.style.display = "block";
+                } else {
+                    warningEl.style.display = "none";
+                }
             } catch (e) {
                 console.error("Failed to fetch settings:", e);
                 showSectionStatus("settings-status", "Failed to load settings: " + e.message, "error");
@@ -1429,6 +1447,21 @@
                 }
             } catch (e) {
                 showSectionStatus("settings-status", "Reset failed: " + e.message, "error");
+            }
+        }
+
+        async function validateCustomConfig() {
+            var resultEl = document.getElementById("custom-config-validate-result");
+            resultEl.textContent = "Validating...";
+            resultEl.className = "status-msg success";
+            try {
+                var res = await fetch(apiUrl("/api/config/validate-custom"), {method: "POST"});
+                var data = await res.json();
+                resultEl.textContent = data.message;
+                resultEl.className = "status-msg " + (data.ok ? "success" : "error");
+            } catch (e) {
+                resultEl.textContent = "Validation request failed: " + e.message;
+                resultEl.className = "status-msg error";
             }
         }
 

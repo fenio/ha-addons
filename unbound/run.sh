@@ -143,6 +143,7 @@ fi
 python3 /web/config_gen.py --seed-if-needed
 
 # Check custom_config from config.json
+CUSTOM_CONFIG_WARNING="/data/custom_config_warning.txt"
 USE_CUSTOM=false
 if jq -e '.custom_config == true' /data/config.json >/dev/null 2>&1; then
     bashio::log.info "Custom config mode enabled"
@@ -151,18 +152,26 @@ if jq -e '.custom_config == true' /data/config.json >/dev/null 2>&1; then
         bashio::log.warning "Custom config enabled but ${CUSTOM_CONFIG_PATH} not found!"
         bashio::log.warning "Place your unbound.conf at the host path /addon_configs/<slug>/unbound.conf"
         bashio::log.warning "Falling back to web UI configuration..."
+        echo "Custom config file not found at ${CUSTOM_CONFIG_PATH}. Falling back to web UI configuration." \
+            > "${CUSTOM_CONFIG_WARNING}"
     else
         bashio::log.info "Using custom config from ${CUSTOM_CONFIG_PATH}"
         cp "${CUSTOM_CONFIG_PATH}" /etc/unbound/unbound.conf
 
         bashio::log.info "Validating custom configuration..."
-        if unbound-checkconf /etc/unbound/unbound.conf; then
+        CHECKCONF_OUTPUT=$(unbound-checkconf /etc/unbound/unbound.conf 2>&1) || true
+        if echo "${CHECKCONF_OUTPUT}" | grep -q "^unbound-checkconf: no errors"; then
             USE_CUSTOM=true
+            rm -f "${CUSTOM_CONFIG_WARNING}"
         else
             bashio::log.warning "Custom config failed validation!"
             bashio::log.warning "Falling back to web UI configuration..."
+            echo "Custom config failed validation: ${CHECKCONF_OUTPUT}" \
+                > "${CUSTOM_CONFIG_WARNING}"
         fi
     fi
+else
+    rm -f "${CUSTOM_CONFIG_WARNING}"
 fi
 
 if [ "${USE_CUSTOM}" = "false" ]; then
