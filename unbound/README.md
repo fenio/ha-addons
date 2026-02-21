@@ -1,19 +1,40 @@
 # Unbound DNS Resolver
 
-A self-managed Home Assistant add-on that provides a recursive DNS resolver using Unbound. All configuration is done through the built-in web UI — no need to edit YAML or restart the addon to change settings.
+A self-managed Home Assistant add-on providing a recursive DNS resolver using [Unbound](https://nlnetlabs.nl/projects/unbound/about/). Fully configured through the built-in web UI — no YAML editing required.
 
 ## Features
 
-- **Web UI Dashboard**: DNS stats, cache hit rate, blocked domains count, uptime
-- **Settings Tab**: Configure all server settings (network, performance, cache, security, logging) with live reload
-- **Blocklist Management**: Add/remove blocklist URLs, refresh & apply with one click
+### Web UI Dashboard
+- Real-time stats: total queries, queries/sec, cache hit rate, cache hits/misses
+- Average recursion time, prefetch count
+- Query type breakdown (A, AAAA, MX, etc.)
+- Response code distribution (NOERROR, NXDOMAIN, SERVFAIL, etc.)
+- Memory usage per cache (rrset, message, etc.)
+- Unwanted queries/replies security counters
+- Human-readable uptime display
+- Dark mode
+
+### DNS Management
+- **Blocklists**: Add/remove blocklist URLs, one-click refresh & apply, automatic daily refresh
 - **Whitelist**: Exclude domains from blocklists
 - **Local DNS Records**: Custom hostname-to-IP mappings with instant apply
-- **Query Log**: View recent queries, top domains chart, filter by domain/client
 - **Cache Controls**: Flush individual domains or entire cache
-- **Recursive DNS Resolution**: Full recursive resolver or forward to upstream servers
-- **DNSSEC Validation**: Optional DNSSEC support for secure DNS lookups
-- **Dark Mode**: Toggle between light and dark themes
+- **Query Log**: Recent queries viewer, top domains chart, filter by domain/client
+
+### Server Settings (all hot-reloaded, no restart needed)
+- **Network**: Access control, forward servers, DNS-over-TLS, IPv4/IPv6
+- **Performance**: Thread count, prefetch, fast server selection
+- **Cache**: Min/max TTL
+- **Security & Privacy**: DNSSEC, QNAME minimisation, identity/version hiding
+- **Logging**: Verbosity, query logging
+
+### Under the Hood
+- Recursive resolver or forwarding mode (including DNS-over-TLS)
+- DNSSEC validation
+- Docker health check (DNS query monitoring)
+- Root hints auto-update on startup
+- Config validation with automatic rollback on failure
+- Custom `unbound.conf` support for advanced users
 
 ## Installation
 
@@ -28,21 +49,23 @@ A self-managed Home Assistant add-on that provides a recursive DNS resolver usin
 
 ## Configuration
 
-All settings are managed through the web UI's **Settings** tab. Changes are applied immediately via hot-reload — no addon restart needed (except for thread count changes). There are no options in the HA addon configuration panel.
+All settings are managed through the web UI's **Settings** tab. Changes are applied immediately via hot-reload — no addon restart needed (except for thread count changes).
+
+The only option in the HA addon panel is `log_level` for controlling addon log verbosity.
 
 ### Custom Configuration
 
-If the web UI doesn't cover your needs, you can provide your own `unbound.conf`:
+For advanced users who need full control over `unbound.conf`:
 
 1. Enable **Custom Config** in the web UI Settings tab
-2. Place your `unbound.conf` file at `/addon_configs/<slug>_unbound/unbound.conf` (the exact path is shown in the addon log on startup)
+2. Place your `unbound.conf` at the addon config path shown in the addon log (e.g. `/addon_configs/<slug>_unbound/unbound.conf`)
 3. Restart the addon
 
-When custom config mode is enabled, all other settings in the Settings tab are ignored — the addon uses your file as-is.
+When custom config mode is enabled, all other settings are ignored.
 
 ### First Run
 
-On first startup, the addon seeds its config from HA addon defaults. After that, all configuration lives in `/data/config.json` and is managed exclusively through the web UI.
+On first startup, the addon creates a default configuration. After that, all settings live in `/data/config.json` and are managed exclusively through the web UI.
 
 ## Network Configuration
 

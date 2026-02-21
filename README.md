@@ -14,15 +14,14 @@ TP-Link Omada Controller for CPUs without AVX support. The standard Omada Contro
 
 ### [Unbound DNS](./unbound)
 
-![Version](https://img.shields.io/badge/version-1.24.2--ha12-blue.svg)
+![Version](https://img.shields.io/badge/version-1.24.2--ha17-blue.svg)
 
-A self-managed recursive DNS resolver with a built-in web UI for:
-- DNS stats dashboard with cache hit rate and blocked domains
-- Blocklist and whitelist management
-- Local DNS records with instant apply
-- All server settings configurable via Settings tab (no YAML editing)
-- Query log viewer with top domains chart
-- DNSSEC validation, forwarding or full recursive mode
+Self-managed recursive DNS resolver with a built-in web UI. No YAML editing — everything is configured through the browser.
+
+- **Dashboard**: Queries/sec, cache hit rate, query type & response code charts, memory usage
+- **DNS Management**: Blocklists with daily auto-refresh, whitelist, local DNS records, cache controls
+- **Settings**: Network, performance, cache, security, logging — all hot-reloaded
+- **Advanced**: DNS-over-TLS forwarding, DNSSEC, health checks, custom unbound.conf support
 
 ### [DLNA Proxy](./dlna-proxy)
 
