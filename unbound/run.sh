@@ -5,9 +5,29 @@ set -e
 bashio::log.level "$(bashio::config 'log_level')"
 bashio::log.info "Starting Unbound DNS resolver ($(bashio::addon.version))..."
 
-ADDON_SLUG="${HOSTNAME//-/_}"
-CUSTOM_CONFIG_PATH="/addon_configs/${ADDON_SLUG}/unbound.conf"
-bashio::log.debug "Addon slug: ${ADDON_SLUG}"
+bashio::log.debug "HOSTNAME: ${HOSTNAME}"
+bashio::log.debug "Contents of /addon_configs/:"
+ls -la /addon_configs/ >&2 || true
+
+# Detect addon config directory: try both hyphen and underscore variants
+ADDON_DIR=""
+for candidate in "/addon_configs/${HOSTNAME}" "/addon_configs/${HOSTNAME//-/_}"; do
+    if [ -d "${candidate}" ]; then
+        ADDON_DIR="${candidate}"
+        break
+    fi
+done
+# Fallback: find any directory matching *unbound*
+if [ -z "${ADDON_DIR}" ]; then
+    ADDON_DIR=$(find /addon_configs/ -maxdepth 1 -type d -name "*unbound*" 2>/dev/null | head -1)
+fi
+if [ -n "${ADDON_DIR}" ]; then
+    CUSTOM_CONFIG_PATH="${ADDON_DIR}/unbound.conf"
+else
+    CUSTOM_CONFIG_PATH="/addon_configs/${HOSTNAME}/unbound.conf"
+fi
+bashio::log.debug "Addon config dir: ${ADDON_DIR:-not found}"
+bashio::log.debug "Custom config path: ${CUSTOM_CONFIG_PATH}"
 BLOCKLISTS_FILE="/data/blocklists.json"
 BLOCKLIST_CONF="/etc/unbound/blocklist.conf"
 WHITELIST_FILE="/data/whitelist.json"
