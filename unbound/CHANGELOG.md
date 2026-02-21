@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.24.2-ha22] - 2026/02/21
+
+- Fix custom config path: use /config (container mount) instead of /addon_configs (host path). Fixes #4.
+
 ## [1.24.2-ha20] - 2026/02/21
 
 - Fix addon_configs path: auto-detect directory with debug logging (try hyphen, underscore, and glob fallback)

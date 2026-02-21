@@ -5,44 +5,7 @@ set -e
 bashio::log.level "$(bashio::config 'log_level')"
 bashio::log.info "Starting Unbound DNS resolver ($(bashio::addon.version))..."
 
-bashio::log.debug "HOSTNAME: ${HOSTNAME}"
-bashio::log.debug "Root directories:"
-ls -d /*/ >&2 2>/dev/null || true
-bashio::log.debug "Checking common mount points:"
-for p in /addon_configs /config /share /data /homeassistant; do
-    if [ -d "${p}" ]; then
-        bashio::log.debug "  ${p}/ exists:"
-        ls -la "${p}/" >&2 2>/dev/null || true
-    else
-        bashio::log.debug "  ${p}/ does NOT exist"
-    fi
-done
-
-# Detect addon config directory
-ADDON_DIR=""
-for base in /addon_configs /config; do
-    if [ ! -d "${base}" ]; then
-        continue
-    fi
-    for candidate in "${base}/${HOSTNAME}" "${base}/${HOSTNAME//-/_}"; do
-        if [ -d "${candidate}" ]; then
-            ADDON_DIR="${candidate}"
-            break 2
-        fi
-    done
-    # Glob fallback
-    if [ -z "${ADDON_DIR}" ]; then
-        ADDON_DIR=$(find "${base}/" -maxdepth 1 -type d -name "*unbound*" 2>/dev/null | head -1)
-        [ -n "${ADDON_DIR}" ] && break
-    fi
-done
-if [ -n "${ADDON_DIR}" ]; then
-    CUSTOM_CONFIG_PATH="${ADDON_DIR}/unbound.conf"
-else
-    CUSTOM_CONFIG_PATH="/addon_configs/${HOSTNAME}/unbound.conf"
-fi
-bashio::log.debug "Addon config dir: ${ADDON_DIR:-not found}"
-bashio::log.debug "Custom config path: ${CUSTOM_CONFIG_PATH}"
+CUSTOM_CONFIG_PATH="/config/unbound.conf"
 BLOCKLISTS_FILE="/data/blocklists.json"
 BLOCKLIST_CONF="/etc/unbound/blocklist.conf"
 WHITELIST_FILE="/data/whitelist.json"
@@ -186,7 +149,7 @@ if jq -e '.custom_config == true' /data/config.json >/dev/null 2>&1; then
 
     if [ ! -f "${CUSTOM_CONFIG_PATH}" ]; then
         bashio::log.error "Custom config enabled but ${CUSTOM_CONFIG_PATH} not found!"
-        bashio::log.error "Place your unbound.conf in the addon_configs/${ADDON_SLUG}/ directory."
+        bashio::log.error "Place your unbound.conf in the addon's config directory via the host path /addon_configs/<slug>/unbound.conf"
         exit 1
     fi
 
