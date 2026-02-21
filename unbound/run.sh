@@ -143,36 +143,46 @@ fi
 python3 /web/config_gen.py --seed-if-needed
 
 # Check custom_config from config.json
+USE_CUSTOM=false
 if jq -e '.custom_config == true' /data/config.json >/dev/null 2>&1; then
-    # Custom config mode: use user-provided unbound.conf
     bashio::log.info "Custom config mode enabled"
 
     if [ ! -f "${CUSTOM_CONFIG_PATH}" ]; then
-        bashio::log.error "Custom config enabled but ${CUSTOM_CONFIG_PATH} not found!"
-        bashio::log.error "Place your unbound.conf in the addon's config directory via the host path /addon_configs/<slug>/unbound.conf"
-        exit 1
-    fi
+        bashio::log.warning "Custom config enabled but ${CUSTOM_CONFIG_PATH} not found!"
+        bashio::log.warning "Place your unbound.conf at the host path /addon_configs/<slug>/unbound.conf"
+        bashio::log.warning "Falling back to web UI configuration..."
+    else
+        bashio::log.info "Using custom config from ${CUSTOM_CONFIG_PATH}"
+        cp "${CUSTOM_CONFIG_PATH}" /etc/unbound/unbound.conf
 
-    bashio::log.info "Using custom config from ${CUSTOM_CONFIG_PATH}"
-    cp "${CUSTOM_CONFIG_PATH}" /etc/unbound/unbound.conf
-else
+        bashio::log.info "Validating custom configuration..."
+        if unbound-checkconf /etc/unbound/unbound.conf; then
+            USE_CUSTOM=true
+        else
+            bashio::log.warning "Custom config failed validation!"
+            bashio::log.warning "Falling back to web UI configuration..."
+        fi
+    fi
+fi
+
+if [ "${USE_CUSTOM}" = "false" ]; then
     # Generated config mode
     bashio::log.info "Generating Unbound configuration..."
     python3 /web/config_gen.py --generate
-fi
 
-# Initialize and apply blocklists, then local records
-init_blocklists
-apply_blocklists
-init_local_records
+    # Initialize and apply blocklists, then local records
+    init_blocklists
+    apply_blocklists
+    init_local_records
 
-# Validate configuration
-bashio::log.info "Validating Unbound configuration..."
-if ! unbound-checkconf /etc/unbound/unbound.conf; then
-    bashio::log.error "Invalid Unbound configuration!"
-    bashio::log.error "Generated config:"
-    cat /etc/unbound/unbound.conf
-    exit 1
+    # Validate generated configuration
+    bashio::log.info "Validating Unbound configuration..."
+    if ! unbound-checkconf /etc/unbound/unbound.conf; then
+        bashio::log.error "Invalid Unbound configuration!"
+        bashio::log.error "Generated config:"
+        cat /etc/unbound/unbound.conf
+        exit 1
+    fi
 fi
 
 bashio::log.info "Configuration valid. Starting Unbound..."
