@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.24.2-ha19] - 2026/02/21
+
+- Fix addon_configs path: HOSTNAME uses hyphen but directory uses underscore (376df8b2-unbound vs 376df8b2_unbound)
+
+## [1.24.2-ha18] - 2026/02/21
+
+- Fix addon slug detection: use HOSTNAME env var instead of bashio::addon.slug
+
 ## [1.24.2-ha17] - 2026/02/21
 
 - Fix custom config path: detect addon slug dynamically instead of hardcoding
