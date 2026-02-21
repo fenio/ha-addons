@@ -6,21 +6,36 @@ bashio::log.level "$(bashio::config 'log_level')"
 bashio::log.info "Starting Unbound DNS resolver ($(bashio::addon.version))..."
 
 bashio::log.debug "HOSTNAME: ${HOSTNAME}"
-bashio::log.debug "Contents of /addon_configs/:"
-ls -la /addon_configs/ >&2 || true
-
-# Detect addon config directory: try both hyphen and underscore variants
-ADDON_DIR=""
-for candidate in "/addon_configs/${HOSTNAME}" "/addon_configs/${HOSTNAME//-/_}"; do
-    if [ -d "${candidate}" ]; then
-        ADDON_DIR="${candidate}"
-        break
+bashio::log.debug "Root directories:"
+ls -d /*/ >&2 2>/dev/null || true
+bashio::log.debug "Checking common mount points:"
+for p in /addon_configs /config /share /data /homeassistant; do
+    if [ -d "${p}" ]; then
+        bashio::log.debug "  ${p}/ exists:"
+        ls -la "${p}/" >&2 2>/dev/null || true
+    else
+        bashio::log.debug "  ${p}/ does NOT exist"
     fi
 done
-# Fallback: find any directory matching *unbound*
-if [ -z "${ADDON_DIR}" ]; then
-    ADDON_DIR=$(find /addon_configs/ -maxdepth 1 -type d -name "*unbound*" 2>/dev/null | head -1)
-fi
+
+# Detect addon config directory
+ADDON_DIR=""
+for base in /addon_configs /config; do
+    if [ ! -d "${base}" ]; then
+        continue
+    fi
+    for candidate in "${base}/${HOSTNAME}" "${base}/${HOSTNAME//-/_}"; do
+        if [ -d "${candidate}" ]; then
+            ADDON_DIR="${candidate}"
+            break 2
+        fi
+    done
+    # Glob fallback
+    if [ -z "${ADDON_DIR}" ]; then
+        ADDON_DIR=$(find "${base}/" -maxdepth 1 -type d -name "*unbound*" 2>/dev/null | head -1)
+        [ -n "${ADDON_DIR}" ] && break
+    fi
+done
 if [ -n "${ADDON_DIR}" ]; then
     CUSTOM_CONFIG_PATH="${ADDON_DIR}/unbound.conf"
 else
