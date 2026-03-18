@@ -5,13 +5,10 @@ A self-managed Home Assistant add-on providing a recursive DNS resolver using [U
 ## Features
 
 ### Web UI Dashboard
-- Real-time stats: total queries, queries/sec, cache hit rate, cache hits/misses
-- Average recursion time, prefetch count
-- Query type breakdown (A, AAAA, MX, etc.)
-- Response code distribution (NOERROR, NXDOMAIN, SERVFAIL, etc.)
-- Memory usage per cache (rrset, message, etc.)
-- Unwanted queries/replies security counters
-- Human-readable uptime display
+- Hero cards: total queries, cache hit rate, blocked domains
+- Server info bar: uptime, threads, avg recursion, prefetches, unwanted queries
+- Donut charts for query types (A, AAAA, MX, etc.) and response codes (NOERROR, NXDOMAIN, etc.)
+- Memory usage (non-zero entries only)
 - Dark mode
 
 ### DNS Management
@@ -23,9 +20,9 @@ A self-managed Home Assistant add-on providing a recursive DNS resolver using [U
 
 ### Server Settings (all hot-reloaded, no restart needed)
 - **Network**: Access control, forward servers, DNS-over-TLS, IPv4/IPv6
-- **Performance**: Thread count, prefetch, fast server selection
-- **Cache**: Min/max TTL
-- **Security & Privacy**: DNSSEC, QNAME minimisation, identity/version hiding
+- **Performance**: Thread count, prefetch, fast server selection, EDNS buffer size, minimal responses
+- **Cache**: Message/RRset/negative cache sizing, min/max TTL, negative TTL, serve expired, aggressive NSEC
+- **Security & Privacy**: DNSSEC, QNAME minimisation, identity/version hiding, CAPS for ID (0x20)
 - **Logging**: Verbosity, query logging
 
 ### Under the Hood
@@ -49,7 +46,7 @@ A self-managed Home Assistant add-on providing a recursive DNS resolver using [U
 
 ## Configuration
 
-All settings are managed through the web UI's **Settings** tab. Changes are applied immediately via hot-reload — no addon restart needed (except for thread count changes).
+Settings are organized across dedicated tabs (Network, Performance, Cache, Security, Advanced). Changes are applied immediately via hot-reload — no addon restart needed (except for thread count changes).
 
 The only option in the HA addon panel is `log_level` for controlling addon log verbosity.
 

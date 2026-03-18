@@ -110,6 +110,63 @@ CONFIG_SCHEMA = {
         "type": "bool",
         "default": False,
     },
+    # Cache sizing
+    "msg_cache_size": {
+        "type": "int",
+        "default": 4,
+        "min": 1,
+        "max": 512,
+    },
+    "rrset_cache_size": {
+        "type": "int",
+        "default": 8,
+        "min": 1,
+        "max": 512,
+    },
+    "neg_cache_size": {
+        "type": "int",
+        "default": 1,
+        "min": 1,
+        "max": 128,
+    },
+    "cache_max_negative_ttl": {
+        "type": "int",
+        "default": 3600,
+        "min": 0,
+        "max": 86400,
+    },
+    # Serve expired
+    "serve_expired": {
+        "type": "bool",
+        "default": False,
+    },
+    "serve_expired_ttl": {
+        "type": "int",
+        "default": 86400,
+        "min": 0,
+        "max": 604800,
+    },
+    # Aggressive NSEC
+    "aggressive_nsec": {
+        "type": "bool",
+        "default": True,
+    },
+    # Performance
+    "edns_buffer_size": {
+        "type": "int",
+        "default": 1232,
+        "min": 512,
+        "max": 4096,
+    },
+    "minimal_responses": {
+        "type": "bool",
+        "default": True,
+    },
+    # Security
+    "use_caps_for_id": {
+        "type": "bool",
+        "default": False,
+    },
 }
 
 
@@ -220,19 +277,29 @@ def generate_unbound_conf(config):
     lines.append(f"    prefetch: {_bool_to_yesno(config['prefetch'])}")
     lines.append(f"    fast-server-permil: {config['fast_server_permil']}")
     lines.append(f"    fast-server-num: {config['fast_server_num']}")
+    lines.append(f"    edns-buffer-size: {config.get('edns_buffer_size', 1232)}")
+    lines.append(f"    minimal-responses: {_bool_to_yesno(config.get('minimal_responses', True))}")
     lines.append("    msg-cache-slabs: 4")
     lines.append("    rrset-cache-slabs: 4")
     lines.append("    infra-cache-slabs: 4")
     lines.append("    key-cache-slabs: 4")
     lines.append("")
     lines.append("    # Cache settings")
+    lines.append(f"    msg-cache-size: {config.get('msg_cache_size', 4)}m")
+    lines.append(f"    rrset-cache-size: {config.get('rrset_cache_size', 8)}m")
+    lines.append(f"    neg-cache-size: {config.get('neg_cache_size', 1)}m")
     lines.append(f"    cache-min-ttl: {config['cache_min_ttl']}")
     lines.append(f"    cache-max-ttl: {config['cache_max_ttl']}")
+    lines.append(f"    cache-max-negative-ttl: {config.get('cache_max_negative_ttl', 3600)}")
+    lines.append(f"    serve-expired: {_bool_to_yesno(config.get('serve_expired', False))}")
+    lines.append(f"    serve-expired-ttl: {config.get('serve_expired_ttl', 86400)}")
+    lines.append(f"    aggressive-nsec: {_bool_to_yesno(config.get('aggressive_nsec', True))}")
     lines.append("")
     lines.append("    # Privacy settings")
     lines.append(f"    qname-minimisation: {_bool_to_yesno(config['qname_minimisation'])}")
     lines.append(f"    hide-identity: {_bool_to_yesno(config['hide_identity'])}")
     lines.append(f"    hide-version: {_bool_to_yesno(config['hide_version'])}")
+    lines.append(f"    use-caps-for-id: {_bool_to_yesno(config.get('use_caps_for_id', False))}")
     lines.append("")
     lines.append("    # Root hints for recursive resolution")
     lines.append('    root-hints: "/etc/unbound/root.hints"')

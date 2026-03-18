@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.24.2-ha27] - 2026/03/18
+
+- Add new config options: msg-cache-size, rrset-cache-size, neg-cache-size, cache-max-negative-ttl, serve-expired, serve-expired-ttl, aggressive-nsec, edns-buffer-size, minimal-responses, use-caps-for-id
+- Split Settings tab into dedicated Network, Performance, Cache, Security, and Advanced tabs
+- Add tooltips with descriptions to all settings
+- Redesign Overview dashboard: hero cards, compact server info bar, donut charts for query types and response codes, non-zero-only memory display
+- Add toast notifications for settings save/reset feedback
+- Trim translations/en.yaml to only HA supervisor UI fields (log_level, ports)
+
 ## [1.24.2-ha22] - 2026/02/21
 
 - Fix custom config path: use /config (container mount) instead of /addon_configs (host path). Fixes #4.
