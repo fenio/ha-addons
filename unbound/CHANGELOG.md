@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.24.2-ha28] - 2026/03/19
+
+- Fix dark theme colors to match Home Assistant's native dark palette
+- Fix tooltip positioning: open downward to prevent clipping at viewport edges
+- Fix restart badge layout crowding the tooltip icon on Threads row
+
 ## [1.24.2-ha27] - 2026/03/18
 
 - Add new config options: msg-cache-size, rrset-cache-size, neg-cache-size, cache-max-negative-ttl, serve-expired, serve-expired-ttl, aggressive-nsec, edns-buffer-size, minimal-responses, use-caps-for-id
