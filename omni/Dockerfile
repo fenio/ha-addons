@@ -11,7 +11,7 @@ RUN apk add --no-cache \
     wireguard-tools
 
 # Set Omni version - update this when new versions are released
-ARG OMNI_VERSION=v1.6.3
+ARG OMNI_VERSION=v1.6.4
 ARG TARGETARCH
 
 # Download and install Omni binary
