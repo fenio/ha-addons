@@ -24,8 +24,8 @@ RUN case "${TARGETARCH}" in \
         "https://github.com/siderolabs/omni/releases/download/${OMNI_VERSION}/omni-linux-${ARCH}" && \
     chmod +x /usr/local/bin/omni
 
-# Create directories
-RUN mkdir -p /config /_out
+# Create directories matching upstream volume mount points
+RUN mkdir -p /config /_out/etcd /_out/secondary-storage /_out/omnictl
 
 # Copy run script
 COPY run.sh /

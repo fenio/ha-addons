@@ -212,12 +212,14 @@ if bashio::config.has_value 'initial_users'; then
     done
 fi
 
-# Set up persistent storage matching upstream paths
+# Set up persistent storage matching upstream volume layout
+# Upstream compose mounts volumes directly to /_out/*
+# We replicate this by bind-mounting persistent dirs
 mkdir -p /share/omni/etcd /share/omni/secondary-storage /share/omni/omnictl
-ln -sf /share/omni/etcd /_out/etcd
-ln -sf /share/omni/secondary-storage /_out/secondary-storage
-ln -sf /share/omni/omnictl /_out/omnictl
-ln -sf /share/omni/omnictl /omnictl
+mount --bind /share/omni/etcd /_out/etcd
+mount --bind /share/omni/secondary-storage /_out/secondary-storage
+mount --bind /share/omni/omnictl /_out/omnictl
+mkdir -p /omnictl
 
 bashio::log.info "Starting Omni with configuration:"
 bashio::log.info "  Name: ${NAME}"
