@@ -114,6 +114,7 @@ OMNI_ARGS=(
     "--machine-api-bind-addr=${MACHINE_API_BIND_ADDR}"
     "--k8s-proxy-bind-addr=${K8S_PROXY_BIND_ADDR}"
     "--sqlite-storage-path=/share/omni/omni.db"
+    "--etcd-embedded-db-path=/share/omni/etcd/"
     "--advertised-api-url=https://${ADVERTISED_DOMAIN}/"
     "--siderolink-api-advertised-url=https://${ADVERTISED_DOMAIN}:8090/"
     "--siderolink-wireguard-advertised-addr=${WIREGUARD_IP_CLEAN}:${WIREGUARD_PORT}"
@@ -214,17 +215,12 @@ fi
 
 # Create required directories in persistent storage
 mkdir -p /share/omni/etcd
-mkdir -p /share/omni/omnictl
-ln -sf /share/omni/etcd /data/etcd 2>/dev/null || true
 
 bashio::log.info "Starting Omni with configuration:"
 bashio::log.info "  Name: ${NAME}"
 bashio::log.info "  Account ID: ${ACCOUNT_ID}"
 bashio::log.info "  Domain: ${ADVERTISED_DOMAIN}"
 bashio::log.info "  WireGuard IP: ${WIREGUARD_IP}:${WIREGUARD_PORT}"
-
-# Change to data directory for etcd storage
-cd /share/omni
 
 # Run Omni
 exec /usr/local/bin/omni "${OMNI_ARGS[@]}"

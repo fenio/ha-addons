@@ -24,8 +24,8 @@ RUN case "${TARGETARCH}" in \
         "https://github.com/siderolabs/omni/releases/download/${OMNI_VERSION}/omni-linux-${ARCH}" && \
     chmod +x /usr/local/bin/omni
 
-# Create directories for persistent data
-RUN mkdir -p /data/etcd /config
+# Create directories
+RUN mkdir -p /config
 
 # Copy run script
 COPY run.sh /
