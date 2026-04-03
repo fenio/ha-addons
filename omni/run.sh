@@ -52,11 +52,18 @@ if [ -z "${WIREGUARD_IP}" ]; then
     exit 1
 fi
 
-# Generate account ID if not provided
+# Generate account ID if not provided, persist it for subsequent starts
+ACCOUNT_ID_FILE="/share/omni/account-id"
 if [ -z "${ACCOUNT_ID}" ]; then
-    bashio::log.info "No account_id provided, generating one..."
-    ACCOUNT_ID=$(cat /proc/sys/kernel/random/uuid)
-    bashio::log.info "Generated account ID: ${ACCOUNT_ID}"
+    if [ -f "${ACCOUNT_ID_FILE}" ]; then
+        ACCOUNT_ID=$(cat "${ACCOUNT_ID_FILE}")
+        bashio::log.info "Using persisted account ID: ${ACCOUNT_ID}"
+    else
+        ACCOUNT_ID=$(cat /proc/sys/kernel/random/uuid)
+        mkdir -p /share/omni
+        echo "${ACCOUNT_ID}" > "${ACCOUNT_ID_FILE}"
+        bashio::log.info "Generated and persisted account ID: ${ACCOUNT_ID}"
+    fi
 fi
 
 # Handle GPG key - either from config (base64 encoded) or file
