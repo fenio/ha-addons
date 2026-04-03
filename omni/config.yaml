@@ -1,7 +1,7 @@
 name: "Omni"
 description: "Siderolabs Omni - Kubernetes cluster management platform for Talos Linux"
 url: "https://github.com/fenio/ha-addons/tree/main/omni"
-version: "1.6.4-ha6"
+version: "1.6.4-ha7"
 slug: "omni"
 init: false
 arch:
@@ -129,5 +129,6 @@ homeassistant_api: false
 hassio_api: false
 privileged:
   - NET_ADMIN
+  - SYS_ADMIN
 devices:
   - /dev/net/tun
