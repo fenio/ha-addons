@@ -1,19 +1,16 @@
 #!/usr/bin/with-contenv bashio
 # shellcheck shell=bash
-
-# Trap errors and log them
-trap 'bashio::log.error "Script failed at line $LINENO with exit code $?"' ERR
 set -e
 
 bashio::log.info "Starting Omni - Siderolabs Kubernetes Management Platform..."
 
 # Read configuration from Home Assistant
 NAME=$(bashio::config 'name')
-ACCOUNT_ID=$(bashio::config 'account_id')
+ACCOUNT_ID=$(bashio::config 'account_id' || true)
 ADVERTISED_DOMAIN=$(bashio::config 'advertised_domain')
 WIREGUARD_IP=$(bashio::config 'wireguard_advertised_ip')
-TLS_CERT=$(bashio::config 'tls_cert')
-TLS_KEY=$(bashio::config 'tls_key')
+TLS_CERT=$(bashio::config 'tls_cert' || true)
+TLS_KEY=$(bashio::config 'tls_key' || true)
 
 # Port settings
 EVENT_SINK_PORT=$(bashio::config 'event_sink_port')
@@ -23,21 +20,14 @@ K8S_PROXY_BIND_ADDR=$(bashio::config 'k8s_proxy_bind_addr')
 WIREGUARD_PORT=$(bashio::config 'wireguard_port')
 
 # Authentication settings
-AUTH_AUTH0_ENABLED=$(bashio::config 'auth_auth0_enabled')
-AUTH_SAML_ENABLED=$(bashio::config 'auth_saml_enabled')
-AUTH_OIDC_ENABLED=$(bashio::config 'auth_oidc_enabled')
+AUTH_AUTH0_ENABLED=$(bashio::config 'auth_auth0_enabled' || true)
+AUTH_SAML_ENABLED=$(bashio::config 'auth_saml_enabled' || true)
+AUTH_OIDC_ENABLED=$(bashio::config 'auth_oidc_enabled' || true)
 
-# Check that at least one auth method is enabled (fail fast)
+# Check that at least one auth method is enabled
 if [ "${AUTH_AUTH0_ENABLED}" != "true" ] && [ "${AUTH_SAML_ENABLED}" != "true" ] && [ "${AUTH_OIDC_ENABLED}" != "true" ]; then
-    bashio::log.error "=========================================="
-    bashio::log.error "NO AUTHENTICATION METHOD CONFIGURED!"
-    bashio::log.error "=========================================="
-    bashio::log.error "At least one authentication method must be enabled."
-    bashio::log.error "Please enable one of the following in the add-on configuration:"
-    bashio::log.error "  - auth_auth0_enabled: true (+ auth_auth0_domain and auth_auth0_client_id)"
-    bashio::log.error "  - auth_saml_enabled: true (+ auth_saml_url)"
-    bashio::log.error "  - auth_oidc_enabled: true (+ auth_oidc_provider_url and auth_oidc_client_id)"
-    bashio::log.error "=========================================="
+    bashio::log.error "No authentication method configured!"
+    bashio::log.error "Enable one of: auth_auth0_enabled, auth_saml_enabled, or auth_oidc_enabled"
     exit 1
 fi
 
@@ -74,37 +64,19 @@ if bashio::config.has_value 'private_key_base64'; then
     bashio::log.info "Using GPG key from configuration (base64 encoded)..."
     bashio::config 'private_key_base64' | base64 -d > "${PRIVATE_KEY_PATH}" || {
         bashio::log.error "Failed to decode base64 GPG key"
-        bashio::log.error "Make sure you encoded the key with: cat omni.asc | base64 -w 0"
         exit 1
     }
-    bashio::log.info "GPG key saved to ${PRIVATE_KEY_PATH} ($(wc -c < "${PRIVATE_KEY_PATH}") bytes)"
-    bashio::log.info "GPG key starts with: $(head -1 "${PRIVATE_KEY_PATH}")"
-    bashio::log.info "GPG key ends with: $(tail -1 "${PRIVATE_KEY_PATH}")"
 elif bashio::config.has_value 'private_key_file'; then
     PRIVATE_KEY_FILE=$(bashio::config 'private_key_file')
     if [ -f "/config/${PRIVATE_KEY_FILE}" ]; then
         bashio::log.info "Using GPG key from file: /config/${PRIVATE_KEY_FILE}"
         cp "/config/${PRIVATE_KEY_FILE}" "${PRIVATE_KEY_PATH}"
     else
-        bashio::log.error "=========================================="
-        bashio::log.error "GPG KEY FILE NOT FOUND!"
-        bashio::log.error "=========================================="
-        bashio::log.error "File not found: /config/${PRIVATE_KEY_FILE}"
-        bashio::log.error "Either place your omni.asc file in the /config directory,"
-        bashio::log.error "or use private_key_base64 with your base64-encoded key."
-        bashio::log.error "To encode: cat omni.asc | base64 -w 0"
-        bashio::log.error "=========================================="
+        bashio::log.error "GPG key file not found: /config/${PRIVATE_KEY_FILE}"
         exit 1
     fi
 else
-    bashio::log.error "=========================================="
-    bashio::log.error "NO GPG KEY CONFIGURED!"
-    bashio::log.error "=========================================="
-    bashio::log.error "Please configure one of the following:"
-    bashio::log.error "  - private_key_base64: base64-encoded GPG key (single line)"
-    bashio::log.error "    To encode: cat omni.asc | base64 -w 0"
-    bashio::log.error "  - private_key_file: filename in /config directory"
-    bashio::log.error "=========================================="
+    bashio::log.error "No GPG key configured! Set private_key_base64 or private_key_file"
     exit 1
 fi
 
@@ -147,14 +119,14 @@ fi
 # Configure authentication - Auth0
 if [ "${AUTH_AUTH0_ENABLED}" = "true" ]; then
     bashio::log.info "Configuring Auth0 authentication..."
-    AUTH0_DOMAIN=$(bashio::config 'auth_auth0_domain')
-    AUTH0_CLIENT_ID=$(bashio::config 'auth_auth0_client_id')
-    
+    AUTH0_DOMAIN=$(bashio::config 'auth_auth0_domain' || true)
+    AUTH0_CLIENT_ID=$(bashio::config 'auth_auth0_client_id' || true)
+
     if [ -z "${AUTH0_DOMAIN}" ] || [ -z "${AUTH0_CLIENT_ID}" ]; then
         bashio::log.error "Auth0 is enabled but domain or client_id is missing!"
         exit 1
     fi
-    
+
     OMNI_ARGS+=(
         "--auth-auth0-enabled=true"
         "--auth-auth0-domain=${AUTH0_DOMAIN}"
@@ -165,13 +137,13 @@ fi
 # Configure authentication - SAML
 if [ "${AUTH_SAML_ENABLED}" = "true" ]; then
     bashio::log.info "Configuring SAML authentication..."
-    SAML_URL=$(bashio::config 'auth_saml_url')
-    
+    SAML_URL=$(bashio::config 'auth_saml_url' || true)
+
     if [ -z "${SAML_URL}" ]; then
         bashio::log.error "SAML is enabled but URL is missing!"
         exit 1
     fi
-    
+
     OMNI_ARGS+=(
         "--auth-saml-enabled=true"
         "--auth-saml-url=${SAML_URL}"
@@ -181,37 +153,36 @@ fi
 # Configure authentication - OIDC
 if [ "${AUTH_OIDC_ENABLED}" = "true" ]; then
     bashio::log.info "Configuring OIDC authentication..."
-    OIDC_PROVIDER_URL=$(bashio::config 'auth_oidc_provider_url')
-    OIDC_CLIENT_ID=$(bashio::config 'auth_oidc_client_id')
-    OIDC_CLIENT_SECRET=$(bashio::config 'auth_oidc_client_secret')
-    OIDC_LOGOUT_URL=$(bashio::config 'auth_oidc_logout_url')
-    
+    OIDC_PROVIDER_URL=$(bashio::config 'auth_oidc_provider_url' || true)
+    OIDC_CLIENT_ID=$(bashio::config 'auth_oidc_client_id' || true)
+    OIDC_CLIENT_SECRET=$(bashio::config 'auth_oidc_client_secret' || true)
+    OIDC_LOGOUT_URL=$(bashio::config 'auth_oidc_logout_url' || true)
+
     if [ -z "${OIDC_PROVIDER_URL}" ] || [ -z "${OIDC_CLIENT_ID}" ]; then
         bashio::log.error "OIDC is enabled but provider_url or client_id is missing!"
         exit 1
     fi
-    
+
     OMNI_ARGS+=(
         "--auth-oidc-enabled=true"
         "--auth-oidc-provider-url=${OIDC_PROVIDER_URL}"
         "--auth-oidc-client-id=${OIDC_CLIENT_ID}"
     )
-    
+
     if [ -n "${OIDC_CLIENT_SECRET}" ]; then
         OMNI_ARGS+=("--auth-oidc-client-secret=${OIDC_CLIENT_SECRET}")
     fi
-    
+
     if [ -n "${OIDC_LOGOUT_URL}" ]; then
         OMNI_ARGS+=("--auth-oidc-logout-url=${OIDC_LOGOUT_URL}")
     fi
-    
-    # Add OIDC scopes
+
     for scope in $(bashio::config 'auth_oidc_scopes'); do
         OMNI_ARGS+=("--auth-oidc-scopes=${scope}")
     done
 fi
 
-# Add initial users (for Auth0)
+# Add initial users
 if bashio::config.has_value 'initial_users'; then
     for user in $(bashio::config 'initial_users'); do
         bashio::log.info "Adding initial user: ${user}"
@@ -220,13 +191,11 @@ if bashio::config.has_value 'initial_users'; then
 fi
 
 # Set up persistent storage matching upstream volume layout
-# Upstream compose mounts volumes directly to /_out/*
-# We replicate this by bind-mounting persistent dirs
 mkdir -p /share/omni/etcd /share/omni/secondary-storage /share/omni/omnictl
-mount --bind /share/omni/etcd /_out/etcd
-mount --bind /share/omni/secondary-storage /_out/secondary-storage
-mount --bind /share/omni/omnictl /_out/omnictl
-mkdir -p /omnictl
+ln -sfn /share/omni/etcd /_out/etcd
+ln -sfn /share/omni/secondary-storage /_out/secondary-storage
+ln -sfn /share/omni/omnictl /_out/omnictl
+ln -sfn /share/omni/omnictl /omnictl
 
 bashio::log.info "Starting Omni with configuration:"
 bashio::log.info "  Name: ${NAME}"
@@ -234,5 +203,4 @@ bashio::log.info "  Account ID: ${ACCOUNT_ID}"
 bashio::log.info "  Domain: ${ADVERTISED_DOMAIN}"
 bashio::log.info "  WireGuard IP: ${WIREGUARD_IP}:${WIREGUARD_PORT}"
 
-# Run Omni
 exec /usr/local/bin/omni "${OMNI_ARGS[@]}"
