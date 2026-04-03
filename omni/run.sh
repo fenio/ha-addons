@@ -217,6 +217,7 @@ mkdir -p /share/omni/etcd /share/omni/secondary-storage /share/omni/omnictl
 ln -sf /share/omni/etcd /_out/etcd
 ln -sf /share/omni/secondary-storage /_out/secondary-storage
 ln -sf /share/omni/omnictl /_out/omnictl
+ln -sf /share/omni/omnictl /omnictl
 
 bashio::log.info "Starting Omni with configuration:"
 bashio::log.info "  Name: ${NAME}"
