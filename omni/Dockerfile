@@ -25,7 +25,7 @@ RUN case "${TARGETARCH}" in \
     chmod +x /usr/local/bin/omni
 
 # Create directories
-RUN mkdir -p /config
+RUN mkdir -p /config /_out
 
 # Copy run script
 COPY run.sh /

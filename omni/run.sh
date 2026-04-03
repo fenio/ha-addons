@@ -113,8 +113,7 @@ OMNI_ARGS=(
     "--bind-addr=${BIND_ADDR}"
     "--machine-api-bind-addr=${MACHINE_API_BIND_ADDR}"
     "--k8s-proxy-bind-addr=${K8S_PROXY_BIND_ADDR}"
-    "--sqlite-storage-path=/share/omni/omni.db"
-    "--etcd-embedded-db-path=/share/omni/etcd/"
+    "--sqlite-storage-path=/_out/secondary-storage/sqlite.db"
     "--advertised-api-url=https://${ADVERTISED_DOMAIN}/"
     "--siderolink-api-advertised-url=https://${ADVERTISED_DOMAIN}:8090/"
     "--siderolink-wireguard-advertised-addr=${WIREGUARD_IP_CLEAN}:${WIREGUARD_PORT}"
@@ -213,9 +212,11 @@ if bashio::config.has_value 'initial_users'; then
     done
 fi
 
-# Create required directories
-mkdir -p /share/omni/etcd
-mkdir -p /omnictl
+# Set up persistent storage matching upstream paths
+mkdir -p /share/omni/etcd /share/omni/secondary-storage /share/omni/omnictl
+ln -sf /share/omni/etcd /_out/etcd
+ln -sf /share/omni/secondary-storage /_out/secondary-storage
+ln -sf /share/omni/omnictl /_out/omnictl
 
 bashio::log.info "Starting Omni with configuration:"
 bashio::log.info "  Name: ${NAME}"
