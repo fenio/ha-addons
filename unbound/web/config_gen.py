@@ -62,7 +62,7 @@ CONFIG_SCHEMA = {
     },
     "do_ip6": {
         "type": "bool",
-        "default": True,
+        "default": False,
     },
     "cache_min_ttl": {
         "type": "int",
@@ -260,6 +260,7 @@ def generate_unbound_conf(config):
     lines.append("server:")
     lines.append("    # Daemon settings")
     lines.append("    do-daemonize: no")
+    lines.append('    username: ""')
     lines.append('    chroot: ""')
     lines.append("")
     lines.append("    # Network settings")
@@ -421,6 +422,11 @@ def apply_config(new_config):
     content = generate_unbound_conf(new_config)
     with open(UNBOUND_CONF, "w") as f:
         f.write(content)
+
+    # Ensure include files exist (they may not if addon started in custom config mode)
+    for inc in (BLOCKLIST_CONF, LOCAL_RECORDS_CONF):
+        if not os.path.exists(inc):
+            open(inc, "w").close()
 
     # Check conf
     ok, output = check_conf()
