@@ -615,6 +615,7 @@
         <button class="tab" data-tab="blocklists">Blocklists</button>
         <button class="tab" data-tab="whitelist">Whitelist</button>
         <button class="tab" data-tab="local-records">Local Records</button>
+        <button class="tab" data-tab="stub-zones">Stub Zones</button>
         <button class="tab" data-tab="query-log">Query Log</button>
         <button class="tab" data-tab="network">Network</button>
         <button class="tab" data-tab="performance">Performance</button>
@@ -690,6 +691,15 @@
             <div id="memory-stats" style="display:flex;flex-wrap:wrap;gap:16px">
                 <p class="empty-state" style="width:100%">Loading...</p>
             </div>
+        </div>
+
+        <!-- Full stats dump -->
+        <div class="section">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h2 style="margin-bottom:0">Full Statistics</h2>
+                <button class="btn-primary btn-sm" onclick="toggleFullStats()">Show / Hide</button>
+            </div>
+            <pre id="full-stats-output" style="display:none;background:var(--bg-input);border:1px solid var(--border-color);border-radius:6px;padding:14px;font-size:0.8rem;max-height:500px;overflow:auto;white-space:pre-wrap;word-break:break-all;color:var(--text-secondary)">Loading...</pre>
         </div>
     </div>
 
@@ -769,6 +779,33 @@
                 </thead>
                 <tbody id="local-records-body">
                     <tr><td colspan="4" class="empty-state">No local records</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ==================== Tab: Stub Zones ==================== -->
+    <div class="tab-content" id="tab-stub-zones">
+        <div class="section">
+            <h2>Stub Zones</h2>
+            <p class="text-muted" style="margin-bottom:12px">Forward queries for specific domains to a designated DNS server (e.g. your router for local device names). Changes take effect immediately.</p>
+            <div id="stub-zones-status" class="status-msg"></div>
+            <div class="add-form">
+                <input type="text" id="new-stub-zone-name" placeholder="home.lan">
+                <input type="text" id="new-stub-zone-addr" placeholder="192.168.1.1" style="max-width:200px">
+                <button class="btn-primary" onclick="addStubZone()">Add</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Zone Name</th>
+                        <th>Server Address</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="stub-zones-body">
+                    <tr><td colspan="4" class="empty-state">No stub zones configured</td></tr>
                 </tbody>
             </table>
         </div>
@@ -1299,9 +1336,38 @@
                 } else {
                     memContainer.innerHTML = '<p class="empty-state" style="width:100%">No memory data</p>';
                 }
+
+                // Full stats
+                fullStatsRaw = data.raw;
+                renderFullStats();
             } catch (e) {
                 console.error("Failed to fetch stats:", e);
             }
+        }
+
+        // --- Full Stats ---
+
+        var fullStatsRaw = null;
+
+        function toggleFullStats() {
+            var el = document.getElementById("full-stats-output");
+            if (el.style.display === "none") {
+                el.style.display = "block";
+                if (fullStatsRaw) {
+                    renderFullStats();
+                }
+            } else {
+                el.style.display = "none";
+            }
+        }
+
+        function renderFullStats() {
+            var el = document.getElementById("full-stats-output");
+            if (!fullStatsRaw || el.style.display === "none") return;
+            var lines = Object.entries(fullStatsRaw)
+                .map(function(e) { return e[0] + "=" + e[1]; })
+                .join("\n");
+            el.textContent = lines;
         }
 
         // --- Blocklists ---
@@ -1517,6 +1583,72 @@
                 }
             } catch (e) {
                 showSectionStatus("local-records-status", "Failed: " + e.message, "error");
+            }
+        }
+
+        // --- Stub Zones ---
+
+        async function fetchStubZones() {
+            try {
+                var res = await fetch(apiUrl("/api/stub-zones"));
+                if (!res.ok) throw new Error("Stub zones fetch failed");
+                var data = await res.json();
+                var tbody = document.getElementById("stub-zones-body");
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No stub zones configured</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.map(function(zone, i) {
+                    return '<tr>' +
+                        '<td>' + i + '</td>' +
+                        '<td>' + escapeHtml(zone.name) + '</td>' +
+                        '<td>' + escapeHtml(zone.addr) + '</td>' +
+                        '<td><button class="btn-danger btn-sm" onclick="removeStubZone(' + i + ')">Remove</button></td>' +
+                        '</tr>';
+                }).join("");
+            } catch (e) {
+                console.error("Failed to fetch stub zones:", e);
+            }
+        }
+
+        async function addStubZone() {
+            var nameInput = document.getElementById("new-stub-zone-name");
+            var addrInput = document.getElementById("new-stub-zone-addr");
+            var name = nameInput.value.trim();
+            var addr = addrInput.value.trim();
+            if (!name || !addr) return;
+            try {
+                var res = await fetch(apiUrl("/api/stub-zones"), {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({name: name, addr: addr})
+                });
+                var data = await res.json();
+                if (res.ok) {
+                    nameInput.value = "";
+                    addrInput.value = "";
+                    showSectionStatus("stub-zones-status", "Stub zone added and Unbound reloaded.", "success");
+                    fetchStubZones();
+                } else {
+                    showSectionStatus("stub-zones-status", data.error || "Failed to add", "error");
+                }
+            } catch (e) {
+                showSectionStatus("stub-zones-status", "Failed: " + e.message, "error");
+            }
+        }
+
+        async function removeStubZone(idx) {
+            try {
+                var res = await fetch(apiUrl("/api/stub-zones/" + idx), {method: "DELETE"});
+                var data = await res.json();
+                if (res.ok) {
+                    showSectionStatus("stub-zones-status", "Stub zone removed and Unbound reloaded.", "success");
+                    fetchStubZones();
+                } else {
+                    showSectionStatus("stub-zones-status", data.error || "Failed to remove", "error");
+                }
+            } catch (e) {
+                showSectionStatus("stub-zones-status", "Failed: " + e.message, "error");
             }
         }
 
@@ -1828,6 +1960,9 @@
         document.getElementById("new-record-ip").addEventListener("keydown", function(e) {
             if (e.key === "Enter") addLocalRecord();
         });
+        document.getElementById("new-stub-zone-addr").addEventListener("keydown", function(e) {
+            if (e.key === "Enter") addStubZone();
+        });
         document.getElementById("flush-domain-input").addEventListener("keydown", function(e) {
             if (e.key === "Enter") flushDomain();
         });
@@ -1844,6 +1979,7 @@
         fetchBlocklists();
         fetchWhitelist();
         fetchLocalRecords();
+        fetchStubZones();
 
         // Auto-refresh stats every 10 seconds
         setInterval(fetchStats, 10000);

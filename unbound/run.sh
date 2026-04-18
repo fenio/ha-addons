@@ -179,10 +179,11 @@ if [ "${USE_CUSTOM}" = "false" ]; then
     bashio::log.info "Generating Unbound configuration..."
     python3 /web/config_gen.py --generate
 
-    # Initialize and apply blocklists, then local records
+    # Initialize and apply blocklists, local records, and stub zones
     init_blocklists
     apply_blocklists
     init_local_records
+    [ -f /data/stub_zones.json ] || echo '[]' > /data/stub_zones.json
 
     # Validate generated configuration
     bashio::log.info "Validating Unbound configuration..."

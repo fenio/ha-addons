@@ -16,6 +16,7 @@ OPTIONS_FILE = "/data/options.json"
 UNBOUND_CONF = "/etc/unbound/unbound.conf"
 BLOCKLIST_CONF = "/etc/unbound/blocklist.conf"
 LOCAL_RECORDS_CONF = "/etc/unbound/local_records.conf"
+STUB_ZONES_FILE = "/data/stub_zones.json"
 QUERY_LOG_FILE = "/data/unbound_queries.log"
 LOG_MAX_SIZE = 50 * 1024 * 1024  # 50 MB
 
@@ -360,6 +361,20 @@ def generate_unbound_conf(config):
         lines.append(f"    forward-tls-upstream: {_bool_to_yesno(config.get('forward_tls', False))}")
         for server in forward_servers:
             lines.append(f"    forward-addr: {server}")
+
+    # Stub zones
+    if os.path.exists(STUB_ZONES_FILE):
+        try:
+            with open(STUB_ZONES_FILE, "r") as f:
+                stub_zones = json.load(f)
+            for sz in stub_zones:
+                if sz.get("name") and sz.get("addr"):
+                    lines.append("")
+                    lines.append("stub-zone:")
+                    lines.append(f'    name: "{sz["name"]}"')
+                    lines.append(f"    stub-addr: {sz['addr']}")
+        except (json.JSONDecodeError, OSError):
+            pass
 
     lines.append("")
     return "\n".join(lines)

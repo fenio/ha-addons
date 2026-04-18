@@ -23,6 +23,7 @@ BLOCKLIST_STATUS_FILE = "/data/blocklist_status.json"
 BLOCKLIST_CONF = "/etc/unbound/blocklist.conf"
 WHITELIST_FILE = "/data/whitelist.json"
 LOCAL_RECORDS_FILE = "/data/local_records.json"
+STUB_ZONES_FILE = "/data/stub_zones.json"
 LOCAL_RECORDS_CONF = "/etc/unbound/local_records.conf"
 QUERY_LOG_FILE = "/data/unbound_queries.log"
 CUSTOM_CONFIG_WARNING_FILE = "/data/custom_config_warning.txt"
@@ -83,6 +84,20 @@ def save_whitelist(whitelist):
     """Save whitelisted domains."""
     with open(WHITELIST_FILE, "w") as f:
         json.dump(whitelist, f, indent=2)
+
+
+def load_stub_zones():
+    """Load stub zones."""
+    if not os.path.exists(STUB_ZONES_FILE):
+        return []
+    with open(STUB_ZONES_FILE, "r") as f:
+        return json.load(f)
+
+
+def save_stub_zones(zones):
+    """Save stub zones."""
+    with open(STUB_ZONES_FILE, "w") as f:
+        json.dump(zones, f, indent=2)
 
 
 def load_local_records():
@@ -460,6 +475,66 @@ def api_local_records_remove(idx):
     return jsonify({
         "status": "removed",
         "hostname": removed["hostname"],
+        "reload_ok": reload_ok,
+    })
+
+
+# --- Stub Zones ---
+
+@app.route("/api/stub-zones")
+def api_stub_zones_list():
+    """List all stub zones."""
+    return jsonify(load_stub_zones())
+
+
+@app.route("/api/stub-zones", methods=["POST"])
+def api_stub_zones_add():
+    """Add a stub zone."""
+    data = request.get_json()
+    if not data or "name" not in data or "addr" not in data:
+        return jsonify({"error": "Missing 'name' and/or 'addr' field"}), 400
+
+    name = data["name"].strip().lower()
+    addr = data["addr"].strip()
+    if not name or not addr:
+        return jsonify({"error": "Name and address cannot be empty"}), 400
+
+    zones = load_stub_zones()
+
+    for z in zones:
+        if z["name"] == name:
+            return jsonify({"error": "Stub zone already exists"}), 409
+
+    zones.append({"name": name, "addr": addr})
+    save_stub_zones(zones)
+
+    # Regenerate config and reload
+    config_gen.write_unbound_conf()
+    _, reload_ok = run_unbound_control(["reload"])
+    return jsonify({
+        "status": "added",
+        "name": name,
+        "addr": addr,
+        "reload_ok": reload_ok,
+    }), 201
+
+
+@app.route("/api/stub-zones/<int:idx>", methods=["DELETE"])
+def api_stub_zones_remove(idx):
+    """Remove a stub zone by index."""
+    zones = load_stub_zones()
+    if idx < 0 or idx >= len(zones):
+        return jsonify({"error": "Invalid index"}), 404
+
+    removed = zones.pop(idx)
+    save_stub_zones(zones)
+
+    # Regenerate config and reload
+    config_gen.write_unbound_conf()
+    _, reload_ok = run_unbound_control(["reload"])
+    return jsonify({
+        "status": "removed",
+        "name": removed["name"],
         "reload_ok": reload_ok,
     })
 
