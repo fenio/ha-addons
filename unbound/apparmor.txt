@@ -5,6 +5,8 @@ profile unbound flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/nameservice>
 
   # Capabilities
+  capability chown,
+  capability fowner,
   capability net_bind_service,
   capability setgid,
   capability setuid,
