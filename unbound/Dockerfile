@@ -17,7 +17,8 @@ RUN apk add --no-cache \
 RUN mkdir -p /var/run/unbound /etc/unbound /var/lib/unbound /data && \
     curl -o /etc/unbound/root.hints https://www.internic.net/domain/named.root && \
     unbound-anchor -a /var/lib/unbound/root.key || true && \
-    chown -R unbound:unbound /var/lib/unbound /var/run/unbound
+    chmod 777 /var/lib/unbound /var/run/unbound && \
+    chmod 666 /var/lib/unbound/root.key
 
 # Set up unbound-control keys for stats access
 RUN unbound-control-setup

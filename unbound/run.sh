@@ -197,10 +197,8 @@ fi
 
 bashio::log.info "Configuration valid. Starting Unbound..."
 
-# Ensure unbound user can write to required paths (needed for custom config mode)
-chown -R unbound:unbound /var/lib/unbound /var/run/unbound
-touch /data/unbound_queries.log
-chown unbound:unbound /data/unbound_queries.log
+# Ensure query log exists and is writable by any user (for custom config mode)
+(umask 000; touch /data/unbound_queries.log)
 
 # Start web UI in background
 bashio::log.info "Starting web UI on port 2137..."
