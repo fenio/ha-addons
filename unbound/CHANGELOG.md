@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.24.2-ha32] - 2026/04/20
+
+- Fix "Permission denied" crash on startup caused by runtime chown/chmod failing in HA containers
+- Fix autotrust file (`/var/lib/unbound/root.key`) permission denied (issue #14)
+- Fix query log permission denied in custom config mode (issue #7)
+- Set world-writable permissions on `/var/lib/unbound` at build time instead of runtime
+- Use umask trick for query log creation to avoid needing CAP_CHOWN
+
+### Recovery guide (if stuck on ha29-ha31)
+
+If your addon crashes on startup with `chown: Permission denied` or `chmod: Permission denied`
+and you can't update because DNS is down, follow these steps:
+
+```bash
+# 1. Patch the broken container to get DNS back
+DOCKER_ID=$(docker ps -a --filter "name=unbound" --format "{{.ID}}")
+docker cp $DOCKER_ID:/run.sh /tmp/run.sh
+sed -i '/chown/d;/chmod/d' /tmp/run.sh
+docker cp /tmp/run.sh $DOCKER_ID:/run.sh
+docker commit $DOCKER_ID ghcr.io/fenio/unbound-amd64:1.24.2-ha31
+ha apps restart 6a5ae1ea_unbound
+
+# 2. Temporarily switch DNS so HA supervisor sees internet connectivity
+#    (replace address/gateway with your actual values)
+ha network update enp1s0 --ipv4-method static --ipv4-address 10.10.10.200/24 --ipv4-gateway 10.10.10.1 --ipv4-nameserver 8.8.8.8
+
+# 3. Wait for supervisor to detect connectivity, then update
+sleep 30
+ha supervisor repair
+ha apps update 6a5ae1ea_unbound
+
+# 4. Revert DNS back to unbound
+ha network update enp1s0 --ipv4-method static --ipv4-address 10.10.10.200/24 --ipv4-gateway 10.10.10.1 --ipv4-nameserver 10.10.10.200
+```
+
+Note: Replace `amd64` with `aarch64` if on ARM (e.g., Raspberry Pi). Replace the IP
+address, gateway, and addon slug with your actual values.
+
 ## [1.24.2-ha28] - 2026/03/19
 
 - Fix dark theme colors to match Home Assistant's native dark palette
