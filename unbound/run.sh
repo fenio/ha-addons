@@ -197,6 +197,12 @@ fi
 
 bashio::log.info "Configuration valid. Starting Unbound..."
 
+# Ensure writable directories work for both root and unbound user
+chmod 777 /var/lib/unbound /var/run/unbound
+chmod 666 /var/lib/unbound/root.key 2>/dev/null || true
+touch /data/unbound_queries.log
+chmod 666 /data/unbound_queries.log
+
 # Start web UI in background
 bashio::log.info "Starting web UI on port 2137..."
 INGRESS_PATH=$(bashio::addon.ingress_entry) \
