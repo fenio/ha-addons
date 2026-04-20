@@ -4,6 +4,17 @@ set -e
 
 bashio::log.info "Starting Omni - Siderolabs Kubernetes Management Platform..."
 
+# Read EULA acceptance configuration
+EULA_ACCEPT_NAME=$(bashio::config 'eula_accept_name')
+EULA_ACCEPT_EMAIL=$(bashio::config 'eula_accept_email')
+
+# Validate EULA acceptance
+if [ -z "${EULA_ACCEPT_NAME}" ] || [ -z "${EULA_ACCEPT_EMAIL}" ]; then
+    bashio::log.error "EULA acceptance is required starting with Omni 1.7.0!"
+    bashio::log.error "Please set eula_accept_name and eula_accept_email in the add-on configuration."
+    exit 1
+fi
+
 # Read configuration from Home Assistant
 NAME=$(bashio::config 'name')
 ACCOUNT_ID=$(bashio::config 'account_id' || true)
@@ -85,6 +96,8 @@ WIREGUARD_IP_CLEAN="${WIREGUARD_IP%%:*}"
 
 # Build command arguments
 OMNI_ARGS=(
+    "--eula-accept-name=${EULA_ACCEPT_NAME}"
+    "--eula-accept-email=${EULA_ACCEPT_EMAIL}"
     "--account-id=${ACCOUNT_ID}"
     "--name=${NAME}"
     "--private-key-source=file://${PRIVATE_KEY_PATH}"

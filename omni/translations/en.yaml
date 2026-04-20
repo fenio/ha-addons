@@ -1,4 +1,12 @@
 configuration:
+  # EULA acceptance
+  eula_accept_name:
+    name: EULA Accept Name
+    description: "Your name to accept the Omni EULA (required starting with v1.7.0)."
+  eula_accept_email:
+    name: EULA Accept Email
+    description: "Your email address to accept the Omni EULA (required starting with v1.7.0)."
+
   # Instance settings
   name:
     name: Instance Name

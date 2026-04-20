@@ -1,7 +1,7 @@
 name: "Omni"
 description: "Siderolabs Omni - Kubernetes cluster management platform for Talos Linux"
 url: "https://github.com/fenio/ha-addons/tree/main/omni"
-version: "1.6.5-ha1"
+version: "1.7.0-ha1"
 slug: "omni"
 init: false
 arch:
@@ -29,6 +29,10 @@ map:
   - share:rw
 
 options:
+  # EULA acceptance (required)
+  eula_accept_name: ""
+  eula_accept_email: ""
+
   # Instance settings
   name: "omni"
   account_id: ""
@@ -78,6 +82,10 @@ options:
   wireguard_port: 50180
 
 schema:
+  # EULA acceptance
+  eula_accept_name: str
+  eula_accept_email: email
+
   # Instance settings
   name: str
   account_id: str
