@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.24.2-ha33] - 2026/04/29
+
+- Fix dashboard showing "0" prefetches and "N/A" threads in multi-threaded mode (issue #16)
+- Read prefetch counter from `total.num.prefetch` instead of non-existent `num.prefetch`
+- Derive thread count by counting `threadX.num.queries` keys since unbound does not emit `num.threads`
+
 ## [1.24.2-ha32] - 2026/04/20
 
 - Fix "Permission denied" crash on startup caused by runtime chown/chmod failing in HA containers

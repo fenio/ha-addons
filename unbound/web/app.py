@@ -187,6 +187,13 @@ def api_stats():
 
     stats = parse_stats(raw)
 
+    # Unbound in multi-threaded mode emits per-thread keys (threadN.*) plus
+    # cumulative total.* keys, and does not emit num.threads — derive it.
+    num_threads = sum(
+        1 for key in stats
+        if key.startswith("thread") and key.endswith(".num.queries")
+    )
+
     total_queries = float(stats.get("total.num.queries", 0))
     cache_hits = float(stats.get("total.num.cachehits", 0))
     cache_miss = float(stats.get("total.num.cachemiss", 0))
@@ -232,12 +239,12 @@ def api_stats():
         "cache_misses": int(cache_miss),
         "cache_hit_rate": round(hit_rate, 1),
         "blocked_domains": blocked_count,
-        "num_threads": stats.get("num.threads", "N/A"),
+        "num_threads": num_threads if num_threads > 0 else "N/A",
         "uptime": stats.get("time.up", "N/A"),
         "queries_per_sec": queries_per_sec,
         "recursion_time_avg": stats.get("total.recursion.time.avg", "N/A"),
         "recursion_time_median": stats.get("total.recursion.time.median", "N/A"),
-        "prefetch": int(float(stats.get("num.prefetch", 0))),
+        "prefetch": int(float(stats.get("total.num.prefetch", 0))),
         "unwanted_queries": int(float(stats.get("unwanted.queries", 0))),
         "unwanted_replies": int(float(stats.get("unwanted.replies", 0))),
         "rcodes": rcodes,
