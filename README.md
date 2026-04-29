@@ -31,7 +31,7 @@ Makes a remote DLNA server (e.g., MiniDLNA) discoverable on your local network b
 
 ### [Omni](./omni)
 
-![Version](https://img.shields.io/badge/version-1.6.5--ha1-blue.svg)
+![Version](https://img.shields.io/badge/version-1.7.1--ha1-blue.svg)
 
 Siderolabs Omni - Kubernetes cluster management platform for Talos Linux. Provides a unified interface for managing Talos-based Kubernetes clusters with secure WireGuard connectivity.
 
