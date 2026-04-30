@@ -147,16 +147,28 @@ def get_ingress_path():
     return os.environ.get("INGRESS_PATH", "")
 
 
-def run_unbound_control(cmd):
-    """Run an unbound-control command and return output."""
-    try:
-        result = subprocess.run(
-            ["unbound-control"] + cmd,
-            capture_output=True, text=True, timeout=5
-        )
-        return result.stdout, result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        return str(e), False
+def run_unbound_control(cmd, retries=0):
+    """Run an unbound-control command and return (output, ok).
+
+    On success: returns stdout. On failure: returns combined stderr+stdout so
+    OpenSSL/TLS diagnostics aren't lost. Set retries>0 to retry transient
+    failures (e.g. control-channel races during reload).
+    """
+    last_err = ""
+    for attempt in range(retries + 1):
+        try:
+            result = subprocess.run(
+                ["unbound-control"] + cmd,
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                return result.stdout, True
+            last_err = (result.stderr.strip() + "\n" + result.stdout.strip()).strip()
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            last_err = str(e)
+        if attempt < retries:
+            time.sleep(0.5)
+    return last_err or "Unknown error", False
 
 
 def parse_stats(raw_stats):
@@ -371,7 +383,7 @@ def _do_blocklist_refresh():
             f.write(f'local-zone: "{domain}." always_refuse\n')
 
     # Reload unbound to pick up changes
-    _, reload_ok = run_unbound_control(["reload"])
+    _, reload_ok = run_unbound_control(["reload"], retries=1)
 
     return {
         "status": "refreshed",
@@ -458,7 +470,7 @@ def api_local_records_add():
     save_local_records(records)
     write_local_records_conf(records)
 
-    _, reload_ok = run_unbound_control(["reload"])
+    _, reload_ok = run_unbound_control(["reload"], retries=1)
     return jsonify({
         "status": "added",
         "hostname": hostname,
@@ -478,7 +490,7 @@ def api_local_records_remove(idx):
     save_local_records(records)
     write_local_records_conf(records)
 
-    _, reload_ok = run_unbound_control(["reload"])
+    _, reload_ok = run_unbound_control(["reload"], retries=1)
     return jsonify({
         "status": "removed",
         "hostname": removed["hostname"],
@@ -517,7 +529,7 @@ def api_stub_zones_add():
 
     # Regenerate config and reload
     config_gen.write_unbound_conf()
-    _, reload_ok = run_unbound_control(["reload"])
+    _, reload_ok = run_unbound_control(["reload"], retries=1)
     return jsonify({
         "status": "added",
         "name": name,
@@ -538,7 +550,7 @@ def api_stub_zones_remove(idx):
 
     # Regenerate config and reload
     config_gen.write_unbound_conf()
-    _, reload_ok = run_unbound_control(["reload"])
+    _, reload_ok = run_unbound_control(["reload"], retries=1)
     return jsonify({
         "status": "removed",
         "name": removed["name"],

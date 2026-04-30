@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.24.2-ha34] - 2026/04/30
+
+- Diagnostics for "SSL handshake failed" on Save & Apply (issue #13)
+- Surface stderr from `unbound-control` in error messages so OpenSSL/TLS details are no longer dropped
+- Retry `unbound-control reload` once on transient failures to cover control-channel races
+
 ## [1.24.2-ha33] - 2026/04/29
 
 - Fix dashboard showing "0" prefetches and "N/A" threads in multi-threaded mode (issue #16)

@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 CONFIG_FILE = "/data/config.json"
 OPTIONS_FILE = "/data/options.json"
@@ -402,15 +403,26 @@ def check_conf():
 
 
 def _reload_unbound():
-    """Tell unbound to reload its config."""
-    try:
-        result = subprocess.run(
-            ["unbound-control", "reload"],
-            capture_output=True, text=True, timeout=5,
-        )
-        return result.returncode == 0, (result.stdout + result.stderr).strip()
-    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-        return False, str(e)
+    """Tell unbound to reload its config.
+
+    Retries once on failure to cover transient control-channel TLS handshake
+    races (issue #13).
+    """
+    last_output = ""
+    for attempt in range(2):
+        try:
+            result = subprocess.run(
+                ["unbound-control", "reload"],
+                capture_output=True, text=True, timeout=5,
+            )
+            last_output = (result.stdout + result.stderr).strip()
+            if result.returncode == 0:
+                return True, last_output
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            last_output = str(e)
+        if attempt == 0:
+            time.sleep(0.5)
+    return False, last_output
 
 
 def apply_config(new_config):
