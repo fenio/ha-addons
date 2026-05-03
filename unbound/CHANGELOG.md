@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.24.2-ha35] - 2026/05/03
+
+- Fix Query Log tab showing garbage rows from non-query `info:` lines (issue #17)
+- Tighten log parser: validate client as IPv4/IPv6, require trailing dot on domain, restrict class to IN/CH/HS/ANY/NONE
+- Split `log-replies` into its own setting; previously it was forced on whenever `log_queries` was enabled, causing every lookup to appear twice
+- Add "Clear Log" button in Query Log tab (POST `/api/query-log/clear`)
+
 ## [1.24.2-ha34] - 2026/04/30
 
 - Diagnostics for "SSL handshake failed" on Save & Apply (issue #13)

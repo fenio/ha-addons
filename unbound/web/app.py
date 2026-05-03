@@ -1,6 +1,7 @@
 """Unbound DNS resolver web UI for Home Assistant ingress."""
 
 import importlib.util
+import ipaddress
 import json
 import logging
 import os
@@ -35,10 +36,18 @@ _BLOCKLIST_SKIP_DOMAINS = frozenset({
     "ip6-mcastprefix", "ip6-allnodes", "ip6-allrouters", "ip6-allhosts",
 })
 
-# Matches unbound log query lines like:
-# [1708012345] unbound[1:0] info: 192.168.1.1 example.com. A IN
+# Matches unbound query/reply log lines. Both share the first five fields:
+#   [1708012345] unbound[1:0] info: 192.168.1.1 example.com. A IN
+# Reply lines (log-replies: yes) tack on rcode/rtt/size after the class.
+# We anchor strictly enough to skip other info: lines (stats, validation
+# failures, keytag generation, etc.) that previously produced garbage rows.
 _LOG_QUERY_RE = re.compile(
-    r"\[(\d+)\]\s+unbound\[\d+:\d+\]\s+info:\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)"
+    r"\[(\d+)\]\s+unbound\[\d+:\d+\]\s+info:\s+"
+    r"(\S+)\s+"                          # client (IP, validated below)
+    r"(\S+\.)\s+"                        # domain (must end with a dot)
+    r"([A-Z][A-Z0-9]*)\s+"               # RR type
+    r"(IN|CH|HS|ANY|NONE)"               # DNS class
+    r"(?:\s|$)"
 )
 
 
@@ -129,14 +138,20 @@ def parse_query_log(text):
     entries = []
     for line in text.split("\n"):
         m = _LOG_QUERY_RE.search(line)
-        if m:
-            entries.append({
-                "timestamp": int(m.group(1)),
-                "client": m.group(2),
-                "domain": m.group(3).rstrip("."),
-                "type": m.group(4),
-                "class": m.group(5),
-            })
+        if not m:
+            continue
+        client = m.group(2)
+        try:
+            ipaddress.ip_address(client)
+        except ValueError:
+            continue
+        entries.append({
+            "timestamp": int(m.group(1)),
+            "client": client,
+            "domain": m.group(3).rstrip("."),
+            "type": m.group(4),
+            "class": m.group(5),
+        })
     return entries
 
 
@@ -605,6 +620,21 @@ def api_query_log():
         return jsonify(parse_query_log(text))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/query-log/clear", methods=["POST"])
+def api_query_log_clear():
+    """Truncate the query log file in place."""
+    try:
+        if os.path.exists(QUERY_LOG_FILE):
+            with open(QUERY_LOG_FILE, "w"):
+                pass
+        old = QUERY_LOG_FILE + ".old"
+        if os.path.exists(old):
+            os.unlink(old)
+        return jsonify({"ok": True, "message": "Query log cleared."})
+    except OSError as e:
+        return jsonify({"ok": False, "message": str(e)}), 500
 
 
 @app.route("/api/top-domains")

@@ -112,6 +112,10 @@ CONFIG_SCHEMA = {
         "type": "bool",
         "default": False,
     },
+    "log_replies": {
+        "type": "bool",
+        "default": False,
+    },
     # Cache sizing
     "msg_cache_size": {
         "type": "int",
@@ -247,7 +251,7 @@ def generate_unbound_conf(config):
     """Generate unbound.conf content from config dict."""
     # Log rotation
     log_file = ""
-    if config.get("log_queries"):
+    if config.get("log_queries") or config.get("log_replies"):
         log_file = QUERY_LOG_FILE
         if os.path.exists(log_file):
             try:
@@ -322,7 +326,7 @@ def generate_unbound_conf(config):
     lines.append(f"    verbosity: {config['verbosity']}")
     lines.append(f'    logfile: "{log_file}"')
     lines.append(f"    log-queries: {_bool_to_yesno(config['log_queries'])}")
-    lines.append(f"    log-replies: {_bool_to_yesno(config['log_queries'])}")
+    lines.append(f"    log-replies: {_bool_to_yesno(config.get('log_replies', False))}")
     lines.append("    log-servfail: yes")
     lines.append("")
     lines.append("    # Include blocklist and local records")

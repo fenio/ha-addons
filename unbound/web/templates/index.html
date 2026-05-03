@@ -823,7 +823,9 @@
             <h2>Recent Queries</h2>
             <div class="filter-bar">
                 <input type="text" id="query-filter" placeholder="Filter by domain or client..." oninput="renderQueryLog()">
+                <button class="btn-secondary" onclick="clearQueryLog()">Clear Log</button>
             </div>
+            <div id="query-log-status" class="status-msg"></div>
             <div class="query-table-wrap">
                 <table>
                     <thead>
@@ -1107,6 +1109,12 @@
                     <span class="tooltip-icon">?<span class="tooltip-text">Log all DNS queries. Required for the Query Log tab to work. May impact performance on busy networks.</span></span>
                 </div>
                 <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-log_queries"><span class="toggle-slider"></span></label></div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Log Replies
+                    <span class="tooltip-icon">?<span class="tooltip-text">Log DNS replies (response code, latency). Independent of Log Queries. Enabling both will record each lookup twice in the query log.</span></span>
+                </div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-log_replies"><span class="toggle-slider"></span></label></div>
             </div>
         </div>
 
@@ -1672,6 +1680,24 @@
             }
         }
 
+        async function clearQueryLog() {
+            if (!confirm("Clear the query log? This deletes all recorded queries.")) return;
+            try {
+                var res = await fetch(apiUrl("/api/query-log/clear"), {method: "POST"});
+                var data = await res.json();
+                if (data.ok) {
+                    queryLogData = [];
+                    renderQueryLog();
+                    fetchTopDomains();
+                    showSectionStatus("query-log-status", "Query log cleared.", "success");
+                } else {
+                    showSectionStatus("query-log-status", data.message || "Failed to clear log", "error");
+                }
+            } catch (e) {
+                showSectionStatus("query-log-status", "Failed to clear log: " + e.message, "error");
+            }
+        }
+
         function renderQueryLog() {
             var filter = (document.getElementById("query-filter").value || "").toLowerCase();
             var filtered = queryLogData;
@@ -1800,7 +1826,7 @@
                             "serve_expired", "aggressive_nsec",
                             "enable_dnssec", "qname_minimisation",
                             "hide_identity", "hide_version", "use_caps_for_id",
-                            "log_queries"];
+                            "log_queries", "log_replies"];
             boolKeys.forEach(function(key) {
                 var el = document.getElementById("cfg-" + key);
                 if (el) el.checked = !!config[key];
@@ -1869,7 +1895,7 @@
              "serve_expired", "aggressive_nsec",
              "enable_dnssec", "qname_minimisation",
              "hide_identity", "hide_version", "use_caps_for_id",
-             "log_queries"].forEach(function(key) {
+             "log_queries", "log_replies"].forEach(function(key) {
                 var el = document.getElementById("cfg-" + key);
                 if (el) config[key] = el.checked;
             });
