@@ -60,6 +60,34 @@ For advanced users who need full control over `unbound.conf`:
 
 When custom config mode is enabled, all other settings are ignored.
 
+### Overlay Files (mix GUI + snippets)
+
+If you want most settings from the GUI but need a few extras unbound supports (e.g. `local-zone "x." nodefault` to free up reserved zones, `auth-zone:`, `view:`), drop one or both of these files into the addon config folder. Overlays are active whenever **Use custom unbound.conf** is **off**.
+
+- `/addon_configs/<slug>_unbound/unbound-overlay.conf` — lines are injected at the **end** of the generated `server:` block. Use this for extra `server:` directives. **Do not** wrap the contents in a `server:` header.
+
+  ```
+  local-zone: "yourdomain.lan." nodefault
+  local-zone: "168.192.in-addr.arpa." nodefault
+  private-address: 10.0.0.0/8
+  ```
+
+- `/addon_configs/<slug>_unbound/unbound-extra.conf` — appended **after** the `server:` block. Use this for whole top-level sections.
+
+  ```
+  auth-zone:
+      name: "lan."
+      zonefile: "/config/lan.zone"
+
+  view:
+      name: "guest"
+      local-zone: "internal.lan." refuse
+  ```
+
+Precedence: because unbound keeps the last occurrence of a scalar directive within `server:`, anything in `unbound-overlay.conf` overrides the corresponding GUI value. List-type directives (`local-zone`, `access-control`, …) stack.
+
+If the combined config fails `unbound-checkconf`, the addon falls back to GUI-only and shows a banner in the **Advanced** tab with the validation error so you can fix the snippet without losing DNS.
+
 ### First Run
 
 On first startup, the addon creates a default configuration. After that, all settings live in `/data/config.json` and are managed exclusively through the web UI.

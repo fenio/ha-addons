@@ -29,6 +29,9 @@ LOCAL_RECORDS_CONF = "/etc/unbound/local_records.conf"
 QUERY_LOG_FILE = "/data/unbound_queries.log"
 CUSTOM_CONFIG_WARNING_FILE = "/data/custom_config_warning.txt"
 CUSTOM_CONFIG_PATH = "/config/unbound.conf"
+OVERLAY_WARNING_FILE = "/data/overlay_warning.txt"
+OVERLAY_FILE = "/config/unbound-overlay.conf"
+EXTRA_FILE = "/config/unbound-extra.conf"
 
 _BLOCKLIST_SKIP_DOMAINS = frozenset({
     "localhost", "localhost.localdomain", "local", "broadcasthost",
@@ -673,6 +676,15 @@ def api_config_get():
     if os.path.exists(CUSTOM_CONFIG_WARNING_FILE):
         with open(CUSTOM_CONFIG_WARNING_FILE, "r") as f:
             result["custom_config_warning"] = f.read().strip()
+    if os.path.exists(OVERLAY_WARNING_FILE):
+        with open(OVERLAY_WARNING_FILE, "r") as f:
+            result["overlay_warning"] = f.read().strip()
+    result["overlay_status"] = {
+        "overlay_present": os.path.exists(OVERLAY_FILE)
+            and os.path.getsize(OVERLAY_FILE) > 0,
+        "extra_present": os.path.exists(EXTRA_FILE)
+            and os.path.getsize(EXTRA_FILE) > 0,
+    }
     return jsonify(result)
 
 

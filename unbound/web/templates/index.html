@@ -1071,6 +1071,12 @@
                 </div>
                 <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-use_caps_for_id"><span class="toggle-slider"></span></label></div>
             </div>
+            <div class="setting-row">
+                <div class="setting-label">EDNS Client Subnet (ECS)
+                    <span class="tooltip-icon">?<span class="tooltip-text">Send a truncated form of your network address to upstream/authoritative servers so CDNs can return a geographically closer edge. Improves streaming/CDN performance at the cost of some privacy (clients are revealed at /24 IPv4 and /56 IPv6 granularity).</span></span>
+                </div>
+                <div class="setting-input"><label class="toggle"><input type="checkbox" id="cfg-enable_ecs"><span class="toggle-slider"></span></label></div>
+            </div>
         </div>
         <div class="save-bar">
             <button class="btn-success" onclick="saveSettings()">Save &amp; Apply</button>
@@ -1091,6 +1097,31 @@
                     <p class="text-muted" style="margin-top:6px">When enabled, place your config at the addon's <code>/config</code> mount (host path: <code>/addon_configs/&lt;slug&gt;_unbound/unbound.conf</code>). All other settings are ignored.</p>
                     <button class="btn-primary btn-sm" style="margin-top:8px" onclick="validateCustomConfig()">Validate Custom Config</button>
                     <div id="custom-config-validate-result" class="status-msg" style="margin-top:8px"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overlay Files -->
+        <div class="section">
+            <h2>Overlay Files</h2>
+            <div id="overlay-warning" class="status-msg" style="display:none;background:var(--status-warning-bg);color:var(--status-warning-text);border:1px solid var(--status-warning-border);white-space:pre-wrap;"></div>
+            <p class="text-muted">Optional snippet files that augment the generated config without taking over fully. Active only when <em>Use custom unbound.conf</em> is off. If <code>unbound-checkconf</code> rejects the combined config, overlays are dropped and the addon falls back to the GUI-only config.</p>
+            <div class="setting-row">
+                <div class="setting-label"><code>unbound-overlay.conf</code>
+                    <span class="tooltip-icon">?<span class="tooltip-text">Lines are injected at the end of the generated server: block. Use it to add or override server: directives like local-zone, private-address, access-control-tag. Do NOT wrap contents in a server: header.</span></span>
+                </div>
+                <div class="setting-input">
+                    <span id="overlay-status" class="text-muted">checking…</span>
+                    <p class="text-muted" style="margin-top:4px">Host path: <code>/addon_configs/&lt;slug&gt;_unbound/unbound-overlay.conf</code></p>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label"><code>unbound-extra.conf</code>
+                    <span class="tooltip-icon">?<span class="tooltip-text">Appended after the server: block. Use it for whole top-level sections: stub-zone, forward-zone, auth-zone, view, python.</span></span>
+                </div>
+                <div class="setting-input">
+                    <span id="extra-status" class="text-muted">checking…</span>
+                    <p class="text-muted" style="margin-top:4px">Host path: <code>/addon_configs/&lt;slug&gt;_unbound/unbound-extra.conf</code></p>
                 </div>
             </div>
         </div>
@@ -1813,6 +1844,22 @@
                 } else {
                     warningEl.style.display = "none";
                 }
+
+                // Show overlay warning banner if present
+                var overlayWarnEl = document.getElementById("overlay-warning");
+                if (data.overlay_warning) {
+                    overlayWarnEl.textContent = data.overlay_warning;
+                    overlayWarnEl.style.display = "block";
+                } else {
+                    overlayWarnEl.style.display = "none";
+                }
+
+                // Update overlay file status indicators
+                var st = data.overlay_status || {};
+                var ovEl = document.getElementById("overlay-status");
+                if (ovEl) ovEl.textContent = st.overlay_present ? "Detected — applied" : "Not present";
+                var exEl = document.getElementById("extra-status");
+                if (exEl) exEl.textContent = st.extra_present ? "Detected — applied" : "Not present";
             } catch (e) {
                 console.error("Failed to fetch settings:", e);
                 showToast("Failed to load settings: " + e.message, "error");
@@ -1826,6 +1873,7 @@
                             "serve_expired", "aggressive_nsec",
                             "enable_dnssec", "qname_minimisation",
                             "hide_identity", "hide_version", "use_caps_for_id",
+                            "enable_ecs",
                             "log_queries", "log_replies"];
             boolKeys.forEach(function(key) {
                 var el = document.getElementById("cfg-" + key);
@@ -1895,6 +1943,7 @@
              "serve_expired", "aggressive_nsec",
              "enable_dnssec", "qname_minimisation",
              "hide_identity", "hide_version", "use_caps_for_id",
+             "enable_ecs",
              "log_queries", "log_replies"].forEach(function(key) {
                 var el = document.getElementById("cfg-" + key);
                 if (el) config[key] = el.checked;

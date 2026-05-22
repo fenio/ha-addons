@@ -175,23 +175,23 @@ else
 fi
 
 if [ "${USE_CUSTOM}" = "false" ]; then
-    # Generated config mode
-    bashio::log.info "Generating Unbound configuration..."
-    python3 /web/config_gen.py --generate
-
-    # Initialize and apply blocklists, local records, and stub zones
+    # Generated config mode: prepare include targets before --generate so the
+    # built-in validate-with-overlay-fallback step in config_gen.py sees them.
     init_blocklists
     apply_blocklists
     init_local_records
     [ -f /data/stub_zones.json ] || echo '[]' > /data/stub_zones.json
 
-    # Validate generated configuration
-    bashio::log.info "Validating Unbound configuration..."
-    if ! unbound-checkconf /etc/unbound/unbound.conf; then
+    bashio::log.info "Generating and validating Unbound configuration..."
+    if ! python3 /web/config_gen.py --generate; then
         bashio::log.error "Invalid Unbound configuration!"
         bashio::log.error "Generated config:"
         cat /etc/unbound/unbound.conf
         exit 1
+    fi
+
+    if [ -f /data/overlay_warning.txt ]; then
+        bashio::log.warning "Overlay disabled — see web UI banner for details."
     fi
 fi
 

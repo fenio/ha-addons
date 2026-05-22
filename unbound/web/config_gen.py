@@ -21,6 +21,12 @@ STUB_ZONES_FILE = "/data/stub_zones.json"
 QUERY_LOG_FILE = "/data/unbound_queries.log"
 LOG_MAX_SIZE = 50 * 1024 * 1024  # 50 MB
 
+# Optional overlay files: user-supplied snippets that augment the generated
+# config without forcing them into full custom-config mode. See README.
+OVERLAY_FILE = "/config/unbound-overlay.conf"   # injected at end of server: block
+EXTRA_FILE = "/config/unbound-extra.conf"       # appended after server: block
+OVERLAY_WARNING_FILE = "/data/overlay_warning.txt"
+
 # Schema: key -> {type, default, min?, max?, restart_required?}
 CONFIG_SCHEMA = {
     "custom_config": {
@@ -173,6 +179,12 @@ CONFIG_SCHEMA = {
         "type": "bool",
         "default": False,
     },
+    # EDNS Client Subnet (ECS) — forward client subnet info to authoritative
+    # servers so CDNs can pick a geographically appropriate edge.
+    "enable_ecs": {
+        "type": "bool",
+        "default": False,
+    },
 }
 
 
@@ -247,8 +259,49 @@ def _bool_to_yesno(val):
     return "yes" if val else "no"
 
 
-def generate_unbound_conf(config):
-    """Generate unbound.conf content from config dict."""
+def _overlay_present(path):
+    """True if path exists and contains non-whitespace content."""
+    if not os.path.exists(path):
+        return False
+    try:
+        with open(path, "r") as f:
+            return bool(f.read().strip())
+    except OSError:
+        return False
+
+
+def overlay_files_present():
+    """True if either overlay file exists with non-empty content."""
+    return _overlay_present(OVERLAY_FILE) or _overlay_present(EXTRA_FILE)
+
+
+def write_overlay_warning(text):
+    """Persist a banner message about overlay fallback."""
+    try:
+        with open(OVERLAY_WARNING_FILE, "w") as f:
+            f.write(text)
+    except OSError:
+        pass
+
+
+def clear_overlay_warning():
+    """Remove the overlay warning file if present."""
+    try:
+        os.unlink(OVERLAY_WARNING_FILE)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+
+
+def generate_unbound_conf(config, include_overlays=True):
+    """Generate unbound.conf content from config dict.
+
+    When include_overlays=True (default), emit include: directives for the
+    optional /config/unbound-overlay.conf and /config/unbound-extra.conf files
+    if they exist. Set False to produce a config that ignores overlays — used
+    as a fallback when overlays fail unbound-checkconf.
+    """
     # Log rotation
     log_file = ""
     if config.get("log_queries") or config.get("log_replies"):
@@ -337,15 +390,38 @@ def generate_unbound_conf(config):
     for network in config.get("access_control", []):
         lines.append(f"    access-control: {network} allow")
 
-    # DNSSEC
-    if config.get("enable_dnssec"):
+    # Module config: subnetcache (ECS) must come before validator.
+    # Default (DNSSEC on, ECS off) is "validator iterator" — leave implicit.
+    ecs_on = config.get("enable_ecs", False)
+    dnssec_on = config.get("enable_dnssec", True)
+    if ecs_on or not dnssec_on:
+        modules = []
+        if ecs_on:
+            modules.append("subnetcache")
+        if dnssec_on:
+            modules.append("validator")
+        modules.append("iterator")
+        lines.append("")
+        lines.append(f'    module-config: "{" ".join(modules)}"')
+
+    if dnssec_on:
         lines.append("")
         lines.append("    # DNSSEC validation")
         lines.append("    val-clean-additional: yes")
-    else:
+
+    if ecs_on:
         lines.append("")
-        lines.append("    # DNSSEC validation disabled")
-        lines.append('    module-config: "iterator"')
+        lines.append("    # EDNS Client Subnet")
+        lines.append('    client-subnet-zone: "."')
+        lines.append("    max-client-subnet-ipv4: 24")
+        lines.append("    max-client-subnet-ipv6: 56")
+
+    # User overlay — last in server: block so user-set scalars override the
+    # generated ones (unbound keeps the last occurrence within a section).
+    if include_overlays and _overlay_present(OVERLAY_FILE):
+        lines.append("")
+        lines.append("    # User overlay (unbound-overlay.conf)")
+        lines.append(f'    include: "{OVERLAY_FILE}"')
 
     # Remote control
     lines.append("")
@@ -381,14 +457,20 @@ def generate_unbound_conf(config):
         except (json.JSONDecodeError, OSError):
             pass
 
+    # User extra sections (stub-zone/forward-zone/auth-zone/view/python …)
+    if include_overlays and _overlay_present(EXTRA_FILE):
+        lines.append("")
+        lines.append("# User extra sections (unbound-extra.conf)")
+        lines.append(f'include: "{EXTRA_FILE}"')
+
     lines.append("")
     return "\n".join(lines)
 
 
-def write_unbound_conf():
+def write_unbound_conf(include_overlays=True):
     """Load config, generate conf, write to disk."""
     config = load_config()
-    content = generate_unbound_conf(config)
+    content = generate_unbound_conf(config, include_overlays=include_overlays)
     with open(UNBOUND_CONF, "w") as f:
         f.write(content)
 
@@ -404,6 +486,43 @@ def check_conf():
         return result.returncode == 0, output
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
         return False, str(e)
+
+
+def write_and_validate(config):
+    """Generate unbound.conf with overlays, fall back to no-overlay on failure.
+
+    Returns (ok, message). On success, message is "" (overlay clean) or a
+    fallback notice (overlay dropped). On failure, message is the checkconf
+    error. Side effect: writes/clears OVERLAY_WARNING_FILE accordingly.
+    """
+    content = generate_unbound_conf(config, include_overlays=True)
+    with open(UNBOUND_CONF, "w") as f:
+        f.write(content)
+
+    ok, output = check_conf()
+    if ok:
+        clear_overlay_warning()
+        return True, ""
+
+    if not overlay_files_present():
+        return False, output
+
+    # Retry without overlays
+    content_no = generate_unbound_conf(config, include_overlays=False)
+    with open(UNBOUND_CONF, "w") as f:
+        f.write(content_no)
+
+    ok2, output2 = check_conf()
+    if not ok2:
+        return False, output2
+
+    warning = (
+        "Overlay disabled — unbound-checkconf rejected the combined config. "
+        "Fix unbound-overlay.conf or unbound-extra.conf and reload.\n\n"
+        + output
+    )
+    write_overlay_warning(warning)
+    return True, warning
 
 
 def _reload_unbound():
@@ -448,26 +567,25 @@ def apply_config(new_config):
         with open(UNBOUND_CONF, "r") as f:
             backup = f.read()
 
-    # Save and generate
+    # Save config first so write_and_validate sees the new values
     save_config(new_config)
-    content = generate_unbound_conf(new_config)
-    with open(UNBOUND_CONF, "w") as f:
-        f.write(content)
 
     # Ensure include files exist (they may not if addon started in custom config mode)
     for inc in (BLOCKLIST_CONF, LOCAL_RECORDS_CONF):
         if not os.path.exists(inc):
             open(inc, "w").close()
 
-    # Check conf
-    ok, output = check_conf()
+    # Generate + validate, with overlay fallback
+    ok, output = write_and_validate(new_config)
     if not ok:
-        # Rollback
+        # Rollback unbound.conf and stored config
         if backup is not None:
             with open(UNBOUND_CONF, "w") as f:
                 f.write(backup)
         save_config(old_config)
         return {"ok": False, "message": f"Config check failed: {output}"}
+
+    overlay_dropped = bool(output)
 
     # Reload unbound
     reload_ok, reload_msg = _reload_unbound()
@@ -480,6 +598,8 @@ def apply_config(new_config):
     msg = "Configuration applied successfully."
     if restart_required:
         msg = "Configuration saved. Addon restart required for thread count change to take effect."
+    if overlay_dropped:
+        msg += " Overlay was disabled — see banner for details."
     return {"ok": True, "message": msg, "restart_required": restart_required}
 
 
@@ -487,7 +607,13 @@ if __name__ == "__main__":
     if "--seed-if-needed" in sys.argv:
         seed_from_options()
     elif "--generate" in sys.argv:
-        write_unbound_conf()
+        cfg = load_config()
+        ok, msg = write_and_validate(cfg)
+        if not ok:
+            print(f"unbound-checkconf failed: {msg}", file=sys.stderr)
+            sys.exit(1)
+        if msg:
+            print(msg, file=sys.stderr)
     else:
         print("Usage: config_gen.py [--seed-if-needed | --generate]", file=sys.stderr)
         sys.exit(1)

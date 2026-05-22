@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.24.2-ha37] - 2026/05/22
+
+- Add overlay-file mode: when the standard custom-config toggle is off, the addon now picks up `/config/unbound-overlay.conf` (injected at the end of the generated `server:` block) and `/config/unbound-extra.conf` (appended after `server:` for full top-level sections like `auth-zone:` / `view:` / `forward-zone:`) — closes issues #10 and #11
+- Overlay files are opt-in by presence; existing users with `custom_config: false` or `true` are unaffected unless they drop one of the new filenames
+- If `unbound-checkconf` rejects the combined config, the addon retries without overlays, logs a warning, and surfaces the error in the Advanced tab so DNS stays up while the snippet is fixed
+- Boot order updated: blocklist/local-records init now happens before config generation so the validator sees all include targets
+- Web UI: added an "Overlay Files" section in the Advanced tab with file-presence status and a fallback banner
+
+## [1.24.2-ha36] - 2026/05/22
+
+- Add EDNS Client Subnet (ECS) toggle in Security & Privacy tab (issue #18)
+- When enabled, the `subnetcache` module is loaded ahead of `validator`/`iterator` and ECS is forwarded for all zones (`client-subnet-zone: "."`) with privacy-preserving defaults: IPv4 truncated to /24, IPv6 to /56
+- Note: unbound stays on 1.24.2 from Alpine 3.23; upstream 1.25.1 will land once it reaches the stable Alpine branch
+
 ## [1.24.2-ha35] - 2026/05/03
 
 - Fix Query Log tab showing garbage rows from non-query `info:` lines (issue #17)
