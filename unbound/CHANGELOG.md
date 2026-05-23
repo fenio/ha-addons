@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.24.2-ha38] - 2026/05/23
+
+- Fix DNS-over-TLS forwarding: emit `tls-cert-bundle: "/etc/ssl/cert.pem"` when forward TLS is enabled so upstream certs validate against the system CA store — without this, every DoT handshake failed with "self-signed certificate in certificate chain" (issue #19)
+- Pin `ca-certificates-bundle` explicitly in the image so the bundle is guaranteed present regardless of openssl's transitive deps
+
 ## [1.24.2-ha37] - 2026/05/22
 
 - Add overlay-file mode: when the standard custom-config toggle is off, the addon now picks up `/config/unbound-overlay.conf` (injected at the end of the generated `server:` block) and `/config/unbound-extra.conf` (appended after `server:` for full top-level sections like `auth-zone:` / `view:` / `forward-zone:`) — closes issues #10 and #11
