@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.25.1-ha1] - 2026/06/21
+
+- Rebase on Alpine 3.24 base image and upgrade Unbound 1.24.2 → 1.25.1
+- 1.25.1 is a security release: 11 CVEs fixed upstream, including a potential remote code execution in DNSSEC validation (CVE-2026-33278), cache poisoning, multiple crashes, and the "Jiggle Attack" mitigation — see https://nlnetlabs.nl/projects/unbound/security-advisories/ for the full list
+- No addon config schema changes; existing settings continue to work as-is
+
 ## [1.24.2-ha38] - 2026/05/23
 
 - Fix DNS-over-TLS forwarding: emit `tls-cert-bundle: "/etc/ssl/cert.pem"` when forward TLS is enabled so upstream certs validate against the system CA store — without this, every DoT handshake failed with "self-signed certificate in certificate chain" (issue #19)
