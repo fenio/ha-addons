@@ -1,6 +1,6 @@
 name: Omada Controller (No AVX)
 description: TP-Link Omada Controller for CPUs without AVX support
-version: "6.2.14.11-ha1"
+version: "6.2.14.11"
 slug: omada_controller_no_avx
 url: https://github.com/fenio/omada-controller-no-avx
 image: ghcr.io/fenio/omada-controller-no-avx
