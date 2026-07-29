@@ -1,5 +1,10 @@
 # Changelog
 
+## [6.2.14.11] - 2026/07/29
+
+### Changed
+- Upgrade to TP-Link Omada Controller 6.2.14.11
+
 ## [6.1.0.19] - 2025/01/22
 
 ### Changed
