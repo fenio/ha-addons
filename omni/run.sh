@@ -108,7 +108,7 @@ OMNI_ARGS=(
     "--etcd-embedded-db-path=/share/omni/etcd"
     "--sqlite-storage-path=/share/omni/secondary-storage/sqlite.db"
     "--advertised-api-url=https://${ADVERTISED_DOMAIN}/"
-    "--siderolink-api-advertised-url=https://${ADVERTISED_DOMAIN}:8090/"
+    "--machine-api-advertised-url=https://${ADVERTISED_DOMAIN}:8090/"
     "--siderolink-wireguard-advertised-addr=${WIREGUARD_IP_CLEAN}:${WIREGUARD_PORT}"
     "--advertised-kubernetes-proxy-url=https://${ADVERTISED_DOMAIN}:8100/"
 )
