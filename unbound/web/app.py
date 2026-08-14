@@ -7,17 +7,21 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 import threading
 import time
+from urllib.parse import urlparse
 
 from flask import Flask, jsonify, render_template, request
 
 # Load config_gen from explicit path to avoid sys.path issues in container
-_spec = importlib.util.spec_from_file_location("config_gen", "/web/config_gen.py")
+_config_gen_path = os.environ.get("UNBOUND_CONFIG_GEN_PATH", "/web/config_gen.py")
+_spec = importlib.util.spec_from_file_location("config_gen", _config_gen_path)
 config_gen = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(config_gen)
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
 BLOCKLISTS_FILE = "/data/blocklists.json"
 BLOCKLIST_STATUS_FILE = "/data/blocklist_status.json"
@@ -32,6 +36,14 @@ CUSTOM_CONFIG_PATH = "/config/unbound.conf"
 OVERLAY_WARNING_FILE = "/data/overlay_warning.txt"
 OVERLAY_FILE = "/config/unbound-overlay.conf"
 EXTRA_FILE = "/config/unbound-extra.conf"
+SETTINGS_BACKUP_FORMAT = "ha-unbound-settings"
+SETTINGS_BACKUP_VERSION = 1
+SETTINGS_BACKUP_MAX_BYTES = 2 * 1024 * 1024
+SETTINGS_BACKUP_FILES = {
+    "unbound.conf": CUSTOM_CONFIG_PATH,
+    "unbound-overlay.conf": OVERLAY_FILE,
+    "unbound-extra.conf": EXTRA_FILE,
+}
 
 _BLOCKLIST_SKIP_DOMAINS = frozenset({
     "localhost", "localhost.localdomain", "local", "broadcasthost",
@@ -53,8 +65,29 @@ _LOG_QUERY_RE = re.compile(
     r"(?:\s|$)"
 )
 
+_unbound_version = None
+_settings_lock = threading.RLock()
+_blocklist_refresh_lock = threading.Lock()
+
 
 # --- JSON helpers ---
+
+def synchronized_settings(function):
+    """Serialize mutations of persistent settings and generated config."""
+    def wrapped(*args, **kwargs):
+        with _settings_lock:
+            return function(*args, **kwargs)
+
+    wrapped.__name__ = function.__name__
+    return wrapped
+
+
+def valid_blocklist_url(value):
+    """Return True for absolute HTTP(S) URLs safe to pass to curl."""
+    if not isinstance(value, str) or not value.strip() or value.startswith("-"):
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 def load_blocklists():
     """Load blocklist URLs from persistent storage."""
@@ -124,6 +157,220 @@ def save_local_records(records):
     """Save local DNS records."""
     with open(LOCAL_RECORDS_FILE, "w") as f:
         json.dump(records, f, indent=2)
+
+
+def _read_optional_text(path):
+    """Read a text file if it exists."""
+    if not os.path.exists(path):
+        return None
+    if os.path.getsize(path) > SETTINGS_BACKUP_MAX_BYTES:
+        raise ValueError(f"Custom configuration file is too large to export: {path}")
+    with open(path, "r") as f:
+        return f.read()
+
+
+def create_settings_backup():
+    """Build a portable backup of all user-managed settings."""
+    source_paths = [
+        config_gen.CONFIG_FILE,
+        BLOCKLISTS_FILE,
+        WHITELIST_FILE,
+        LOCAL_RECORDS_FILE,
+        STUB_ZONES_FILE,
+        *SETTINGS_BACKUP_FILES.values(),
+    ]
+    source_size = sum(
+        os.path.getsize(path) for path in source_paths if os.path.exists(path)
+    )
+    if source_size > SETTINGS_BACKUP_MAX_BYTES:
+        raise ValueError("Settings files exceed the 2 MiB backup limit.")
+
+    custom_files = {}
+    for name, path in SETTINGS_BACKUP_FILES.items():
+        content = _read_optional_text(path)
+        if content is not None:
+            custom_files[name] = content
+
+    return {
+        "format": SETTINGS_BACKUP_FORMAT,
+        "version": SETTINGS_BACKUP_VERSION,
+        "exported_at": int(time.time()),
+        "config": config_gen.load_config(),
+        "blocklists": load_blocklists(),
+        "whitelist": load_whitelist(),
+        "local_records": load_local_records(),
+        "stub_zones": load_stub_zones(),
+        "custom_files": custom_files,
+    }
+
+
+def validate_settings_backup(data):
+    """Validate and normalize an imported settings backup."""
+    errors = []
+    normalized = {}
+
+    if not isinstance(data, dict):
+        return None, ["Backup must contain a JSON object."]
+    if data.get("format") != SETTINGS_BACKUP_FORMAT:
+        errors.append("Not an Unbound settings backup.")
+    if data.get("version") != SETTINGS_BACKUP_VERSION:
+        errors.append(f"Unsupported backup version: {data.get('version')!r}.")
+
+    config = data.get("config")
+    if not isinstance(config, dict):
+        errors.append("config must be an object.")
+    else:
+        unknown = sorted(set(config) - set(config_gen.CONFIG_SCHEMA))
+        if unknown:
+            errors.append("config contains unknown settings: " + ", ".join(unknown))
+        merged = {
+            key: schema["default"]
+            for key, schema in config_gen.CONFIG_SCHEMA.items()
+        }
+        merged.update(config)
+        errors.extend(config_gen.validate_config(merged))
+        normalized["config"] = merged
+
+    blocklists = data.get("blocklists")
+    if not isinstance(blocklists, list):
+        errors.append("blocklists must be a list.")
+    elif any(not valid_blocklist_url(value) for value in blocklists):
+        errors.append("blocklists must contain only absolute HTTP or HTTPS URLs.")
+    else:
+        normalized["blocklists"] = blocklists
+
+    whitelist = data.get("whitelist")
+    if not isinstance(whitelist, list):
+        errors.append("whitelist must be a list.")
+    elif any(
+        not isinstance(value, str) or not value.strip() for value in whitelist
+    ):
+        errors.append("whitelist must contain only non-empty strings.")
+    else:
+        normalized["whitelist"] = whitelist
+
+    records = data.get("local_records")
+    if not isinstance(records, list):
+        errors.append("local_records must be a list.")
+    elif any(
+        not isinstance(record, dict)
+        or not isinstance(record.get("hostname"), str)
+        or not record["hostname"].strip()
+        or not isinstance(record.get("ip"), str)
+        or not record["ip"].strip()
+        for record in records
+    ):
+        errors.append("local_records entries require non-empty hostname and ip strings.")
+    else:
+        normalized["local_records"] = [
+            {"hostname": record["hostname"], "ip": record["ip"]}
+            for record in records
+        ]
+
+    zones = data.get("stub_zones")
+    if not isinstance(zones, list):
+        errors.append("stub_zones must be a list.")
+    elif any(
+        not isinstance(zone, dict)
+        or not isinstance(zone.get("name"), str)
+        or not zone["name"].strip()
+        or not isinstance(zone.get("addr"), str)
+        or not zone["addr"].strip()
+        for zone in zones
+    ):
+        errors.append("stub_zones entries require non-empty name and addr strings.")
+    else:
+        normalized["stub_zones"] = [
+            {"name": zone["name"], "addr": zone["addr"]}
+            for zone in zones
+        ]
+
+    custom_files = data.get("custom_files")
+    if not isinstance(custom_files, dict):
+        errors.append("custom_files must be an object.")
+    else:
+        unknown = sorted(set(custom_files) - set(SETTINGS_BACKUP_FILES))
+        if unknown:
+            errors.append("custom_files contains unknown files: " + ", ".join(unknown))
+        invalid = [
+            name for name, content in custom_files.items()
+            if not isinstance(content, str)
+        ]
+        if invalid:
+            errors.append(
+                "custom_files entries must contain text: "
+                + ", ".join(sorted(invalid))
+            )
+        normalized["custom_files"] = custom_files
+
+    if (
+        isinstance(normalized.get("config"), dict)
+        and normalized["config"].get("custom_config")
+        and (
+            not isinstance(custom_files, dict)
+            or not custom_files.get("unbound.conf", "").strip()
+        )
+    ):
+        errors.append("custom_config requires a non-empty unbound.conf file.")
+
+    return (normalized if not errors else None), errors
+
+
+def _snapshot_files(paths):
+    """Read files for transactional rollback."""
+    snapshot = {}
+    for path in paths:
+        if os.path.islink(path):
+            raise ValueError(f"Managed settings path cannot be a symlink: {path}")
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                snapshot[path] = {
+                    "content": f.read(),
+                    "mode": os.stat(path).st_mode & 0o777,
+                }
+        else:
+            snapshot[path] = None
+    return snapshot
+
+
+def _write_bytes_atomic(path, content, mode=None):
+    """Atomically replace a file with bytes."""
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    if mode is None:
+        if os.path.exists(path) and not os.path.islink(path):
+            mode = os.stat(path).st_mode & 0o777
+        else:
+            mode = 0o600
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=directory, delete=False) as tmp:
+            tmp_path = tmp.name
+            tmp.write(content)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+        os.chmod(tmp_path, mode)
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+def _write_json_atomic(path, value):
+    content = (json.dumps(value, indent=2) + "\n").encode("utf-8")
+    _write_bytes_atomic(path, content)
+
+
+def _restore_files(snapshot):
+    """Restore files captured by _snapshot_files."""
+    for path, state in snapshot.items():
+        if state is None:
+            try:
+                os.unlink(path)
+            except FileNotFoundError:
+                pass
+        else:
+            _write_bytes_atomic(path, state["content"], mode=state["mode"])
 
 
 def write_local_records_conf(records):
@@ -199,6 +446,23 @@ def parse_stats(raw_stats):
     return stats
 
 
+def get_unbound_version():
+    """Return the installed Unbound version, cached for the process lifetime."""
+    global _unbound_version
+    if _unbound_version is not None:
+        return _unbound_version
+
+    try:
+        result = subprocess.run(
+            ["unbound", "-V"], capture_output=True, text=True, timeout=5
+        )
+        match = re.search(r"^Version\s+(\S+)", result.stdout, re.MULTILINE)
+        _unbound_version = match.group(1) if match else "N/A"
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        _unbound_version = "N/A"
+    return _unbound_version
+
+
 # --- Routes ---
 
 @app.route("/")
@@ -264,6 +528,7 @@ def api_stats():
             memory[label] = int(float(val))
 
     return jsonify({
+        "unbound_version": get_unbound_version(),
         "total_queries": int(total_queries),
         "cache_hits": int(cache_hits),
         "cache_misses": int(cache_miss),
@@ -304,6 +569,7 @@ def api_blocklists_list():
 
 
 @app.route("/api/blocklists", methods=["POST"])
+@synchronized_settings
 def api_blocklists_add():
     """Add a new blocklist URL."""
     data = request.get_json()
@@ -311,8 +577,8 @@ def api_blocklists_add():
         return jsonify({"error": "Missing 'url' field"}), 400
 
     url = data["url"].strip()
-    if not url:
-        return jsonify({"error": "URL cannot be empty"}), 400
+    if not valid_blocklist_url(url):
+        return jsonify({"error": "URL must use HTTP or HTTPS"}), 400
 
     blocklists = load_blocklists()
     if url in blocklists:
@@ -324,6 +590,7 @@ def api_blocklists_add():
 
 
 @app.route("/api/blocklists/<int:idx>", methods=["DELETE"])
+@synchronized_settings
 def api_blocklists_remove(idx):
     """Remove a blocklist by index."""
     blocklists = load_blocklists()
@@ -343,72 +610,104 @@ def api_blocklists_remove(idx):
 
 def _do_blocklist_refresh():
     """Core blocklist refresh logic. Returns dict with results."""
-    blocklists = load_blocklists()
-    whitelist = set(d.lower() for d in load_whitelist())
-    status = load_blocklist_status()
+    if not _blocklist_refresh_lock.acquire(blocking=False):
+        return {
+            "status": "busy",
+            "domains_blocked": 0,
+            "errors": [{"url": "", "error": "A refresh is already running."}],
+            "reload_ok": False,
+        }
 
-    all_domains = set()
-    errors = []
+    try:
+        with _settings_lock:
+            blocklists = load_blocklists()
+            whitelist_values = load_whitelist()
+            whitelist = set(domain.lower() for domain in whitelist_values)
+            status = load_blocklist_status()
 
-    for url in blocklists:
-        url_domains = set()
-        try:
-            result = subprocess.run(
-                ["curl", "-sS", "--max-time", "30", url],
-                capture_output=True, text=True, timeout=35
-            )
-            if result.returncode != 0:
-                errors.append({"url": url, "error": result.stderr})
+        all_domains = set()
+        errors = []
+
+        for url in blocklists:
+            url_domains = set()
+            try:
+                result = subprocess.run(
+                    [
+                        "curl", "-sS", "--max-time", "30",
+                        "--proto", "=http,https", "--", url,
+                    ],
+                    capture_output=True, text=True, timeout=35
+                )
+                if result.returncode != 0:
+                    errors.append({"url": url, "error": result.stderr})
+                    status[url] = {
+                        "domains": 0,
+                        "last_refresh": time.time(),
+                        "error": result.stderr.strip(),
+                    }
+                    continue
+
+                for line in result.stdout.split("\n"):
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    parts = line.split()
+                    if len(parts) >= 2 and parts[0] in ("0.0.0.0", "127.0.0.1"):
+                        domain = parts[1].strip().lower()
+                        if domain and domain not in _BLOCKLIST_SKIP_DOMAINS:
+                            url_domains.add(domain)
+
+                all_domains |= url_domains
+                status[url] = {
+                    "domains": len(url_domains),
+                    "last_refresh": time.time(),
+                    "error": None,
+                }
+            except Exception as e:
+                errors.append({"url": url, "error": str(e)})
                 status[url] = {
                     "domains": 0,
                     "last_refresh": time.time(),
-                    "error": result.stderr.strip(),
+                    "error": str(e),
                 }
-                continue
 
-            for line in result.stdout.split("\n"):
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                parts = line.split()
-                if len(parts) >= 2 and parts[0] in ("0.0.0.0", "127.0.0.1"):
-                    domain = parts[1].strip().lower()
-                    if domain and domain not in _BLOCKLIST_SKIP_DOMAINS:
-                        url_domains.add(domain)
+        # Subtract whitelisted domains
+        all_domains -= whitelist
 
-            all_domains |= url_domains
-            status[url] = {
-                "domains": len(url_domains),
-                "last_refresh": time.time(),
-                "error": None,
-            }
-        except Exception as e:
-            errors.append({"url": url, "error": str(e)})
-            status[url] = {
-                "domains": 0,
-                "last_refresh": time.time(),
-                "error": str(e),
-            }
+        with _settings_lock:
+            if (
+                load_blocklists() != blocklists
+                or load_whitelist() != whitelist_values
+            ):
+                errors.append({
+                    "url": "",
+                    "error": "Settings changed during refresh; results were not applied.",
+                })
+                return {
+                    "status": "stale",
+                    "domains_blocked": 0,
+                    "errors": errors,
+                    "reload_ok": False,
+                }
 
-    save_blocklist_status(status)
+            save_blocklist_status(status)
+            content = "".join(
+                f'local-zone: "{domain}." always_refuse\n'
+                for domain in sorted(all_domains)
+            )
+            _write_bytes_atomic(BLOCKLIST_CONF, content.encode("utf-8"))
 
-    # Subtract whitelisted domains
-    all_domains -= whitelist
+            # Reload unbound to pick up changes
+            _, reload_ok = run_unbound_control(["reload"], retries=1)
 
-    # Write unbound blocklist config
-    with open(BLOCKLIST_CONF, "w") as f:
-        for domain in sorted(all_domains):
-            f.write(f'local-zone: "{domain}." always_refuse\n')
-
-    # Reload unbound to pick up changes
-    _, reload_ok = run_unbound_control(["reload"], retries=1)
-
-    return {
-        "status": "refreshed",
-        "domains_blocked": len(all_domains),
-        "errors": errors,
-        "reload_ok": reload_ok,
-    }
+        return {
+            "status": "refreshed",
+            "domains_blocked": len(all_domains),
+            "errors": errors,
+            "reload_ok": reload_ok,
+        }
+    finally:
+        _blocklist_refresh_lock.release()
 
 
 @app.route("/api/blocklists/refresh", methods=["POST"])
@@ -426,6 +725,7 @@ def api_whitelist_list():
 
 
 @app.route("/api/whitelist", methods=["POST"])
+@synchronized_settings
 def api_whitelist_add():
     """Add a domain to the whitelist."""
     data = request.get_json()
@@ -446,6 +746,7 @@ def api_whitelist_add():
 
 
 @app.route("/api/whitelist/<int:idx>", methods=["DELETE"])
+@synchronized_settings
 def api_whitelist_remove(idx):
     """Remove a whitelisted domain by index."""
     whitelist = load_whitelist()
@@ -466,6 +767,7 @@ def api_local_records_list():
 
 
 @app.route("/api/local-records", methods=["POST"])
+@synchronized_settings
 def api_local_records_add():
     """Add a local DNS record."""
     data = request.get_json()
@@ -498,6 +800,7 @@ def api_local_records_add():
 
 
 @app.route("/api/local-records/<int:idx>", methods=["DELETE"])
+@synchronized_settings
 def api_local_records_remove(idx):
     """Remove a local DNS record by index."""
     records = load_local_records()
@@ -525,6 +828,7 @@ def api_stub_zones_list():
 
 
 @app.route("/api/stub-zones", methods=["POST"])
+@synchronized_settings
 def api_stub_zones_add():
     """Add a stub zone."""
     data = request.get_json()
@@ -557,6 +861,7 @@ def api_stub_zones_add():
 
 
 @app.route("/api/stub-zones/<int:idx>", methods=["DELETE"])
+@synchronized_settings
 def api_stub_zones_remove(idx):
     """Remove a stub zone by index."""
     zones = load_stub_zones()
@@ -689,6 +994,7 @@ def api_config_get():
 
 
 @app.route("/api/config", methods=["PUT"])
+@synchronized_settings
 def api_config_put():
     """Update config, regenerate unbound.conf, and reload."""
     data = request.get_json()
@@ -702,6 +1008,151 @@ def api_config_put():
     result = config_gen.apply_config(current)
     status_code = 200 if result["ok"] else 400
     return jsonify(result), status_code
+
+
+@app.route("/api/settings/export")
+def api_settings_export():
+    """Download all user-managed settings as a versioned JSON backup."""
+    try:
+        with _settings_lock:
+            backup = create_settings_backup()
+            _, errors = validate_settings_backup(backup)
+            if errors:
+                return jsonify({
+                    "ok": False,
+                    "message": "Current settings cannot be exported: "
+                    + " ".join(errors),
+                }), 409
+            body = json.dumps(backup, indent=2) + "\n"
+    except (OSError, ValueError, json.JSONDecodeError) as e:
+        return jsonify({"ok": False, "message": str(e)}), 413
+    if len(body.encode("utf-8")) > SETTINGS_BACKUP_MAX_BYTES:
+        return jsonify({
+            "ok": False,
+            "message": "Settings backup exceeds the 2 MiB import limit.",
+        }), 413
+    filename = time.strftime("unbound-settings-%Y%m%d-%H%M%S.json", time.gmtime())
+    response = app.response_class(body, mimetype="application/json")
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@app.route("/api/settings/import", methods=["POST"])
+def api_settings_import():
+    """Validate, import, and apply a settings backup with file rollback."""
+    data = request.get_json(silent=True)
+    backup, errors = validate_settings_backup(data)
+    if errors:
+        return jsonify({"ok": False, "message": " ".join(errors)}), 400
+
+    rollback_paths = [
+        config_gen.CONFIG_FILE,
+        config_gen.UNBOUND_CONF,
+        BLOCKLISTS_FILE,
+        BLOCKLIST_STATUS_FILE,
+        BLOCKLIST_CONF,
+        WHITELIST_FILE,
+        LOCAL_RECORDS_FILE,
+        LOCAL_RECORDS_CONF,
+        STUB_ZONES_FILE,
+        OVERLAY_WARNING_FILE,
+        *SETTINGS_BACKUP_FILES.values(),
+    ]
+
+    if not _settings_lock.acquire(blocking=False):
+        return jsonify({
+            "ok": False,
+            "message": "Settings are currently being modified; try again shortly.",
+        }), 409
+
+    try:
+        try:
+            snapshot = _snapshot_files(rollback_paths)
+        except Exception as e:
+            return jsonify({
+                "ok": False,
+                "message": f"Cannot prepare settings import: {e}",
+            }), 400
+
+        try:
+            _write_json_atomic(BLOCKLISTS_FILE, backup["blocklists"])
+            _write_json_atomic(BLOCKLIST_STATUS_FILE, {})
+            if not backup["blocklists"]:
+                _write_bytes_atomic(BLOCKLIST_CONF, b"")
+            _write_json_atomic(WHITELIST_FILE, backup["whitelist"])
+            _write_json_atomic(LOCAL_RECORDS_FILE, backup["local_records"])
+            _write_json_atomic(STUB_ZONES_FILE, backup["stub_zones"])
+            write_local_records_conf(backup["local_records"])
+
+            for name, path in SETTINGS_BACKUP_FILES.items():
+                if name in backup["custom_files"]:
+                    _write_bytes_atomic(
+                        path, backup["custom_files"][name].encode("utf-8")
+                    )
+                else:
+                    try:
+                        os.unlink(path)
+                    except FileNotFoundError:
+                        pass
+
+            if backup["config"].get("custom_config") and os.path.exists(CUSTOM_CONFIG_PATH):
+                check = subprocess.run(
+                    ["unbound-checkconf", CUSTOM_CONFIG_PATH],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if check.returncode != 0:
+                    output = (check.stdout + check.stderr).strip()
+                    raise ValueError(f"Custom configuration is invalid: {output}")
+
+            result = config_gen.apply_config(backup["config"])
+            if not result["ok"]:
+                raise ValueError(result["message"])
+
+            if backup["config"].get("custom_config") and os.path.exists(CUSTOM_CONFIG_PATH):
+                custom_content = backup["custom_files"].get("unbound.conf", "")
+                _write_bytes_atomic(
+                    config_gen.UNBOUND_CONF, custom_content.encode("utf-8")
+                )
+                custom_ok, custom_output = config_gen.check_conf()
+                if not custom_ok:
+                    raise ValueError(
+                        f"Installed custom configuration is invalid: {custom_output}"
+                    )
+                reload_ok, reload_output = config_gen._reload_unbound()
+                if not reload_ok:
+                    raise ValueError(
+                        f"Custom configuration reload failed: {reload_output}"
+                    )
+        except Exception as e:
+            try:
+                _restore_files(snapshot)
+                rollback_ok, rollback_output = config_gen._reload_unbound()
+                rollback_message = "Previous settings restored."
+                if not rollback_ok:
+                    rollback_message = (
+                        "Files restored, but rollback reload failed: "
+                        + rollback_output
+                    )
+            except Exception as rollback_error:
+                rollback_message = f"Rollback was incomplete: {rollback_error}"
+            return jsonify({
+                "ok": False,
+                "message": f"Import failed: {e} {rollback_message}",
+            }), 400
+
+        message = "Settings imported and applied."
+        if backup["blocklists"]:
+            message += " Refresh blocklists to download and apply their contents."
+        if result.get("restart_required"):
+            message += " Restart the addon to apply the thread-count change."
+        return jsonify({
+            "ok": True,
+            "message": message,
+            "restart_required": result.get("restart_required", False),
+            "blocklist_refresh_required": bool(backup["blocklists"]),
+        })
+    finally:
+        _settings_lock.release()
 
 
 @app.route("/api/config/validate-custom", methods=["POST"])
@@ -770,4 +1221,9 @@ if __name__ == "__main__":
     t.start()
 
     port = int(os.environ.get("INGRESS_PORT", 2137))
-    serve(app, host="0.0.0.0", port=port)
+    serve(
+        app,
+        host="0.0.0.0",
+        port=port,
+        max_request_body_size=SETTINGS_BACKUP_MAX_BYTES,
+    )

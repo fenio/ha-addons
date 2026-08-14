@@ -594,10 +594,20 @@ def apply_config(new_config):
     # Reload unbound
     reload_ok, reload_msg = _reload_unbound()
     if not reload_ok:
-        msg = f"Config saved but reload failed: {reload_msg}"
-        if restart_required:
-            msg += " (addon restart required for thread count change)"
-        return {"ok": True, "message": msg, "restart_required": restart_required}
+        if backup is not None:
+            with open(UNBOUND_CONF, "w") as f:
+                f.write(backup)
+        else:
+            try:
+                os.unlink(UNBOUND_CONF)
+            except FileNotFoundError:
+                pass
+        save_config(old_config)
+        rollback_ok, rollback_msg = _reload_unbound()
+        msg = f"Config reload failed; previous settings restored: {reload_msg}"
+        if not rollback_ok:
+            msg += f" Rollback reload also failed: {rollback_msg}"
+        return {"ok": False, "message": msg, "restart_required": restart_required}
 
     msg = "Configuration applied successfully."
     if restart_required:

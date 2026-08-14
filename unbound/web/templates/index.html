@@ -592,6 +592,12 @@
             gap: 10px;
             margin-top: 4px;
         }
+        .backup-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+        }
     </style>
     <script>
         // Restore theme before render to prevent flash
@@ -647,6 +653,11 @@
 
         <!-- Server info bar -->
         <div class="info-bar">
+            <div class="info-item">
+                <span class="info-label">Unbound</span>
+                <span class="info-value" id="unbound-version">--</span>
+            </div>
+            <span class="info-sep">&middot;</span>
             <div class="info-item">
                 <span class="info-label">Uptime</span>
                 <span class="info-value" id="uptime">--</span>
@@ -1086,6 +1097,19 @@
 
     <!-- ==================== Tab: Advanced ==================== -->
     <div class="tab-content" id="tab-advanced">
+        <!-- Backup and Restore -->
+        <div class="section">
+            <h2>Backup &amp; Restore</h2>
+            <div id="settings-backup-status" class="status-msg"></div>
+            <p class="text-muted">Export all web UI settings, blocklist URLs, whitelist entries, local records, stub zones, and known custom configuration files to one portable JSON file.</p>
+            <div class="backup-actions">
+                <button class="btn-primary" onclick="exportSettings()">Export Settings</button>
+                <button class="btn-secondary" onclick="document.getElementById('settings-import-file').click()">Import Settings</button>
+                <input type="file" id="settings-import-file" accept=".json,application/json" hidden onchange="importSettings(this.files[0])">
+            </div>
+            <p class="text-muted" style="margin-top:10px">Import replaces the current settings after validation. Refresh blocklists afterward to download their contents. Files referenced by a custom config beyond <code>unbound.conf</code>, <code>unbound-overlay.conf</code>, and <code>unbound-extra.conf</code> must be copied separately.</p>
+        </div>
+
         <!-- Custom Config -->
         <div class="section">
             <h2>Custom Config</h2>
@@ -1344,6 +1368,7 @@
                 document.getElementById("blocked-domains").textContent = data.blocked_domains.toLocaleString();
 
                 // Info bar
+                document.getElementById("unbound-version").textContent = data.unbound_version || "--";
                 document.getElementById("uptime").textContent = formatUptime(data.uptime);
                 document.getElementById("num-threads").textContent = data.num_threads;
                 document.getElementById("recursion-avg").textContent = formatRecursion(data.recursion_time_avg);
@@ -1960,6 +1985,71 @@
             config.access_control = settingsAcl.slice();
             config.forward_servers = settingsForward.slice();
             return config;
+        }
+
+        async function exportSettings() {
+            try {
+                var res = await fetch(apiUrl("/api/settings/export"));
+                if (!res.ok) {
+                    var error = await res.json();
+                    throw new Error(error.message || "Export failed");
+                }
+                var blob = await res.blob();
+                var disposition = res.headers.get("Content-Disposition") || "";
+                var match = disposition.match(/filename="([^"]+)"/);
+                var filename = match ? match[1] : "unbound-settings.json";
+                var link = document.createElement("a");
+                var objectUrl = URL.createObjectURL(blob);
+                link.href = objectUrl;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(function() { URL.revokeObjectURL(objectUrl); }, 0);
+                showSectionStatus("settings-backup-status", "Settings exported.", "success");
+            } catch (e) {
+                showSectionStatus("settings-backup-status", "Export failed: " + e.message, "error");
+            }
+        }
+
+        async function importSettings(file) {
+            var input = document.getElementById("settings-import-file");
+            if (!file) return;
+            if (file.size > 2 * 1024 * 1024) {
+                showSectionStatus("settings-backup-status", "Backup is larger than 2 MiB.", "error");
+                input.value = "";
+                return;
+            }
+            if (!confirm("Import this backup and replace all current Unbound settings?")) {
+                input.value = "";
+                return;
+            }
+
+            try {
+                var backup = JSON.parse(await file.text());
+                showSectionStatus("settings-backup-status", "Validating and applying backup...", "success");
+                var res = await fetch(apiUrl("/api/settings/import"), {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify(backup)
+                });
+                var data = await res.json();
+                if (!res.ok || !data.ok) throw new Error(data.message || "Import failed");
+
+                settingsLoaded = false;
+                await fetchSettings();
+                fetchBlocklists();
+                fetchWhitelist();
+                fetchLocalRecords();
+                fetchStubZones();
+                fetchStats();
+                showSectionStatus("settings-backup-status", data.message, "success");
+                showToast("Settings import complete.", "success");
+            } catch (e) {
+                showSectionStatus("settings-backup-status", "Import failed: " + e.message, "error");
+            } finally {
+                input.value = "";
+            }
         }
 
         async function saveSettings() {

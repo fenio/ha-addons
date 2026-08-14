@@ -46,7 +46,7 @@ apply_blocklists() {
         url=$(jq -r ".[$i]" "${BLOCKLISTS_FILE}")
         bashio::log.info "  Downloading blocklist: ${url}"
 
-        if curl -sS --max-time 30 "${url}" 2>/dev/null | awk '
+        if curl -sS --max-time 30 --proto '=http,https' -- "${url}" 2>/dev/null | awk '
             BEGIN {
                 skip["localhost"]=1; skip["localhost.localdomain"]=1
                 skip["local"]=1; skip["broadcasthost"]=1

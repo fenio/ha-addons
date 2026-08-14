@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.25.2-ha1] - 2026/08/14
+
+- Upgrade the Alpine-packaged Unbound from 1.25.1 to 1.25.2
+- Include upstream security and robustness fixes for DNSSEC validation, DNS64, auth zones, cache handling, and malformed input
+- Show the underlying Unbound version in the Overview server information bar
+- Add versioned JSON export/import for UI settings, DNS lists and records, stub zones, and known custom configuration files, with validation and rollback on failure (issue #20)
+- No addon config schema changes; existing settings continue to work as-is
+
 ## [1.25.1-ha1] - 2026/06/21
 
 - Rebase on Alpine 3.24 base image and upgrade Unbound 1.24.2 → 1.25.1

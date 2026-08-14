@@ -17,6 +17,7 @@ A self-managed Home Assistant add-on providing a recursive DNS resolver using [U
 - **Local DNS Records**: Custom hostname-to-IP mappings with instant apply
 - **Cache Controls**: Flush individual domains or entire cache
 - **Query Log**: Recent queries viewer, top domains chart, filter by domain/client
+- **Backup & Restore**: Export or import all web UI settings as a portable JSON file
 
 ### Server Settings (all hot-reloaded, no restart needed)
 - **Network**: Access control, forward servers, DNS-over-TLS, IPv4/IPv6
@@ -91,6 +92,12 @@ If the combined config fails `unbound-checkconf`, the addon falls back to GUI-on
 ### First Run
 
 On first startup, the addon creates a default configuration. After that, all settings live in `/data/config.json` and are managed exclusively through the web UI.
+
+### Backup and Restore
+
+The **Advanced** tab can export all web UI settings, blocklist URLs, whitelist entries, local records, stub zones, and the known custom configuration files to a versioned JSON backup. Import validates the complete backup, restores the previous files if configuration validation or reload fails, and applies the settings. After import, refresh blocklists from the **Blocklists** tab (or restart the addon) to download and apply their contents.
+
+The export includes `unbound.conf`, `unbound-overlay.conf`, and `unbound-extra.conf` when present. Any other files referenced by custom configuration, such as zone files or certificates, must be backed up separately. Home Assistant backups remain the recommended way to back up the complete addon data directory.
 
 ## Network Configuration
 
