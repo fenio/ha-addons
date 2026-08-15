@@ -1,4 +1,10 @@
 # Changelog
+## [1.10.3-ha1] - 2026/08/15
+
+- Upgrade Omni 1.10.2 to 1.10.3
+- Fix frontend preload error handling during navigation
+- No upstream dependency, addon config schema, or startup argument changes
+
 ## [1.10.2-ha1] - 2026/08/14
 
 - Upgrade Omni 1.9.1 to 1.10.2, including the 1.9.2 and 1.9.3 fixes
