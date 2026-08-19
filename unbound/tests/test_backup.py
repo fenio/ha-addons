@@ -59,9 +59,33 @@ class BackupValidationTests(unittest.TestCase):
 
         self.assertEqual([], errors)
         self.assertEqual("server.home", backup["local_records"][0]["hostname"])
+        self.assertFalse(backup["local_records"][0]["allow_acme_challenge"])
         self.assertEqual(
             set(unbound_app.config_gen.CONFIG_SCHEMA), set(backup["config"])
         )
+
+    def test_version_one_backup_defaults_acme_challenge_to_disabled(self):
+        data = _valid_backup()
+        data["version"] = 1
+
+        backup, errors = unbound_app.validate_settings_backup(data)
+
+        self.assertEqual([], errors)
+        self.assertFalse(backup["local_records"][0]["allow_acme_challenge"])
+
+    def test_acme_challenge_option_is_preserved_and_must_be_boolean(self):
+        data = _valid_backup()
+        data["local_records"][0]["allow_acme_challenge"] = True
+
+        backup, errors = unbound_app.validate_settings_backup(data)
+
+        self.assertEqual([], errors)
+        self.assertTrue(backup["local_records"][0]["allow_acme_challenge"])
+
+        data["local_records"][0]["allow_acme_challenge"] = "yes"
+        backup, errors = unbound_app.validate_settings_backup(data)
+        self.assertIsNone(backup)
+        self.assertTrue(any("allow_acme_challenge" in error for error in errors))
 
     def test_invalid_format_and_content_are_rejected(self):
         data = _valid_backup()
@@ -174,6 +198,171 @@ class BackupFileTests(unittest.TestCase):
             self.assertEqual(0o600, existing.stat().st_mode & 0o777)
             self.assertFalse(created.exists())
 
+
+class LocalRecordTests(unittest.TestCase):
+    def test_generated_config_preserves_legacy_behavior(self):
+        content = unbound_app.config_gen.generate_local_records_conf([
+            {"hostname": "nas.example.com", "ip": "192.168.1.10"},
+        ])
+
+        self.assertEqual(
+            'local-zone: "nas.example.com." redirect\n'
+            'local-data: "nas.example.com. A 192.168.1.10"\n',
+            content,
+        )
+
+    def test_generated_config_adds_specific_acme_exceptions(self):
+        content = unbound_app.config_gen.generate_local_records_conf([
+            {
+                "hostname": "0f.ee",
+                "ip": "192.168.1.1",
+                "allow_acme_challenge": False,
+            },
+            {
+                "hostname": "nas.0f.ee",
+                "ip": "192.168.1.10",
+                "allow_acme_challenge": True,
+            },
+        ])
+
+        self.assertIn('local-zone: "0f.ee." redirect\n', content)
+        self.assertIn('local-zone: "nas.0f.ee." redirect\n', content)
+        self.assertIn(
+            'local-zone: "_acme-challenge.nas.0f.ee." transparent\n',
+            content,
+        )
+        self.assertNotIn('local-zone: "_acme-challenge.0f.ee." transparent', content)
+
+    def test_update_toggles_acme_exception_for_existing_record(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            records_file = root / "local_records.json"
+            records_conf = root / "local_records.conf"
+            records_file.write_text(
+                json.dumps([{"hostname": "nas.0f.ee", "ip": "10.10.20.100"}])
+            )
+
+            with (
+                patch.object(unbound_app, "LOCAL_RECORDS_FILE", str(records_file)),
+                patch.object(unbound_app, "LOCAL_RECORDS_CONF", str(records_conf)),
+                patch.object(
+                    unbound_app.request,
+                    "get_json",
+                    return_value={"allow_acme_challenge": True},
+                    create=True,
+                ),
+                patch.object(
+                    unbound_app,
+                    "run_unbound_control",
+                    return_value=("ok", True),
+                ) as reload_unbound,
+            ):
+                response = unbound_app.api_local_records_update(0)
+
+            self.assertTrue(response["allow_acme_challenge"])
+            self.assertTrue(
+                json.loads(records_file.read_text())[0]["allow_acme_challenge"]
+            )
+            self.assertIn(
+                'local-zone: "_acme-challenge.nas.0f.ee." transparent',
+                records_conf.read_text(),
+            )
+            reload_unbound.assert_called_once_with(["reload"], retries=1)
+
+    def test_add_restores_previous_records_when_reload_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            records_file = root / "local_records.json"
+            records_conf = root / "local_records.conf"
+            original = {"hostname": "router.0f.ee", "ip": "10.10.10.1"}
+            records_file.write_text(json.dumps([original]))
+
+            with (
+                patch.object(unbound_app, "LOCAL_RECORDS_FILE", str(records_file)),
+                patch.object(unbound_app, "LOCAL_RECORDS_CONF", str(records_conf)),
+                patch.object(
+                    unbound_app.request,
+                    "get_json",
+                    return_value={
+                        "hostname": "nas.0f.ee",
+                        "ip": "10.10.20.100",
+                        "allow_acme_challenge": True,
+                    },
+                    create=True,
+                ),
+                patch.object(
+                    unbound_app,
+                    "run_unbound_control",
+                    side_effect=[("reload failed", False), ("ok", True)],
+                ) as reload_unbound,
+            ):
+                response, status = unbound_app.api_local_records_add()
+
+            self.assertEqual(500, status)
+            self.assertIn("new record was removed", response["error"])
+            self.assertEqual([original], json.loads(records_file.read_text()))
+            self.assertNotIn("_acme-challenge", records_conf.read_text())
+            self.assertEqual(2, reload_unbound.call_count)
+
+    def test_update_restores_previous_setting_when_reload_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            records_file = root / "local_records.json"
+            records_conf = root / "local_records.conf"
+            original = {"hostname": "nas.0f.ee", "ip": "10.10.20.100"}
+            records_file.write_text(json.dumps([original]))
+
+            with (
+                patch.object(unbound_app, "LOCAL_RECORDS_FILE", str(records_file)),
+                patch.object(unbound_app, "LOCAL_RECORDS_CONF", str(records_conf)),
+                patch.object(
+                    unbound_app.request,
+                    "get_json",
+                    return_value={"allow_acme_challenge": True},
+                    create=True,
+                ),
+                patch.object(
+                    unbound_app,
+                    "run_unbound_control",
+                    side_effect=[("reload failed", False), ("ok", True)],
+                ) as reload_unbound,
+            ):
+                response, status = unbound_app.api_local_records_update(0)
+
+            self.assertEqual(500, status)
+            self.assertIn("previous setting was restored", response["error"])
+            self.assertEqual([original], json.loads(records_file.read_text()))
+            self.assertNotIn("_acme-challenge", records_conf.read_text())
+            self.assertEqual(2, reload_unbound.call_count)
+
+    def test_remove_restores_record_when_reload_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            records_file = root / "local_records.json"
+            records_conf = root / "local_records.conf"
+            original = {
+                "hostname": "nas.0f.ee",
+                "ip": "10.10.20.100",
+                "allow_acme_challenge": True,
+            }
+            records_file.write_text(json.dumps([original]))
+
+            with (
+                patch.object(unbound_app, "LOCAL_RECORDS_FILE", str(records_file)),
+                patch.object(unbound_app, "LOCAL_RECORDS_CONF", str(records_conf)),
+                patch.object(
+                    unbound_app,
+                    "run_unbound_control",
+                    side_effect=[("reload failed", False), ("ok", True)],
+                ) as reload_unbound,
+            ):
+                response, status = unbound_app.api_local_records_remove(0)
+
+            self.assertEqual(500, status)
+            self.assertIn("record was restored", response["error"])
+            self.assertEqual([original], json.loads(records_file.read_text()))
+            self.assertIn("_acme-challenge", records_conf.read_text())
+            self.assertEqual(2, reload_unbound.call_count)
 
 class BackupImportTests(unittest.TestCase):
     def _path_patches(self, root):

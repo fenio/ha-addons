@@ -16,6 +16,7 @@ CONFIG_FILE = "/data/config.json"
 OPTIONS_FILE = "/data/options.json"
 UNBOUND_CONF = "/etc/unbound/unbound.conf"
 BLOCKLIST_CONF = "/etc/unbound/blocklist.conf"
+LOCAL_RECORDS_FILE = "/data/local_records.json"
 LOCAL_RECORDS_CONF = "/etc/unbound/local_records.conf"
 STUB_ZONES_FILE = "/data/stub_zones.json"
 QUERY_LOG_FILE = "/data/unbound_queries.log"
@@ -207,6 +208,31 @@ def save_config(config):
     """Write config to disk."""
     with open(CONFIG_FILE, "w") as f:
         json.dump(config, f, indent=2)
+
+
+def generate_local_records_conf(records):
+    """Compile local records and optional public ACME challenge exceptions."""
+    lines = []
+    acme_zones = set()
+    for record in records:
+        hostname = record["hostname"]
+        lines.append(f'local-zone: "{hostname}." redirect')
+        lines.append(f'local-data: "{hostname}. A {record["ip"]}"')
+        if record.get("allow_acme_challenge") is True:
+            acme_zones.add(f"_acme-challenge.{hostname}")
+
+    for zone in sorted(acme_zones):
+        lines.append(f'local-zone: "{zone}." transparent')
+
+    return "".join(f"{line}\n" for line in lines)
+
+
+def write_local_records_conf():
+    """Regenerate local_records.conf from persisted local records."""
+    with open(LOCAL_RECORDS_FILE, "r") as f:
+        records = json.load(f)
+    with open(LOCAL_RECORDS_CONF, "w") as f:
+        f.write(generate_local_records_conf(records))
 
 
 def validate_config(config):
@@ -620,6 +646,8 @@ def apply_config(new_config):
 if __name__ == "__main__":
     if "--seed-if-needed" in sys.argv:
         seed_from_options()
+    elif "--generate-local-records" in sys.argv:
+        write_local_records_conf()
     elif "--generate" in sys.argv:
         cfg = load_config()
         ok, msg = write_and_validate(cfg)
@@ -629,5 +657,9 @@ if __name__ == "__main__":
         if msg:
             print(msg, file=sys.stderr)
     else:
-        print("Usage: config_gen.py [--seed-if-needed | --generate]", file=sys.stderr)
+        print(
+            "Usage: config_gen.py "
+            "[--seed-if-needed | --generate-local-records | --generate]",
+            file=sys.stderr,
+        )
         sys.exit(1)

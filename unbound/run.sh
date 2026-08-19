@@ -10,7 +10,6 @@ BLOCKLISTS_FILE="/data/blocklists.json"
 BLOCKLIST_CONF="/etc/unbound/blocklist.conf"
 WHITELIST_FILE="/data/whitelist.json"
 LOCAL_RECORDS_FILE="/data/local_records.json"
-LOCAL_RECORDS_CONF="/etc/unbound/local_records.conf"
 
 # Initialize blocklists file if it doesn't exist
 init_blocklists() {
@@ -113,8 +112,6 @@ init_local_records() {
     # Write local_records.conf from JSON
     local rec_count
     rec_count=$(jq '. | length' "${LOCAL_RECORDS_FILE}")
-    > "${LOCAL_RECORDS_CONF}"
-
     if [ "${rec_count}" != "0" ]; then
         bashio::log.info "Writing ${rec_count} local DNS record(s)..."
         for i in $(seq 0 $((rec_count - 1))); do
@@ -122,10 +119,10 @@ init_local_records() {
             hostname=$(jq -r ".[$i].hostname" "${LOCAL_RECORDS_FILE}")
             ip=$(jq -r ".[$i].ip" "${LOCAL_RECORDS_FILE}")
             bashio::log.info "  ${hostname} -> ${ip}"
-            echo "local-zone: \"${hostname}.\" redirect" >> "${LOCAL_RECORDS_CONF}"
-            echo "local-data: \"${hostname}. A ${ip}\"" >> "${LOCAL_RECORDS_CONF}"
         done
     fi
+
+    python3 /web/config_gen.py --generate-local-records
 }
 
 # Update root hints (fallback to bundled copy on failure)
