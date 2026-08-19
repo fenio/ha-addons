@@ -37,7 +37,8 @@ OVERLAY_WARNING_FILE = "/data/overlay_warning.txt"
 OVERLAY_FILE = "/config/unbound-overlay.conf"
 EXTRA_FILE = "/config/unbound-extra.conf"
 SETTINGS_BACKUP_FORMAT = "ha-unbound-settings"
-SETTINGS_BACKUP_VERSION = 1
+SETTINGS_BACKUP_VERSION = 2
+SETTINGS_BACKUP_SUPPORTED_VERSIONS = (1, 2)
 SETTINGS_BACKUP_MAX_BYTES = 2 * 1024 * 1024
 SETTINGS_BACKUP_FILES = {
     "unbound.conf": CUSTOM_CONFIG_PATH,
@@ -213,7 +214,7 @@ def validate_settings_backup(data):
         return None, ["Backup must contain a JSON object."]
     if data.get("format") != SETTINGS_BACKUP_FORMAT:
         errors.append("Not an Unbound settings backup.")
-    if data.get("version") != SETTINGS_BACKUP_VERSION:
+    if data.get("version") not in SETTINGS_BACKUP_SUPPORTED_VERSIONS:
         errors.append(f"Unsupported backup version: {data.get('version')!r}.")
 
     config = data.get("config")
@@ -258,12 +259,20 @@ def validate_settings_backup(data):
         or not record["hostname"].strip()
         or not isinstance(record.get("ip"), str)
         or not record["ip"].strip()
+        or not isinstance(record.get("allow_acme_challenge", False), bool)
         for record in records
     ):
-        errors.append("local_records entries require non-empty hostname and ip strings.")
+        errors.append(
+            "local_records entries require non-empty hostname and ip strings "
+            "and an optional Boolean allow_acme_challenge value."
+        )
     else:
         normalized["local_records"] = [
-            {"hostname": record["hostname"], "ip": record["ip"]}
+            {
+                "hostname": record["hostname"],
+                "ip": record["ip"],
+                "allow_acme_challenge": record.get("allow_acme_challenge", False),
+            }
             for record in records
         ]
 
@@ -375,12 +384,8 @@ def _restore_files(snapshot):
 
 def write_local_records_conf(records):
     """Write /etc/unbound/local_records.conf from records list."""
-    with open(LOCAL_RECORDS_CONF, "w") as f:
-        for rec in records:
-            hostname = rec["hostname"]
-            ip = rec["ip"]
-            f.write(f'local-zone: "{hostname}." redirect\n')
-            f.write(f'local-data: "{hostname}. A {ip}"\n')
+    content = config_gen.generate_local_records_conf(records).encode("utf-8")
+    _write_bytes_atomic(LOCAL_RECORDS_CONF, content)
 
 
 def parse_query_log(text):
@@ -776,8 +781,11 @@ def api_local_records_add():
 
     hostname = data["hostname"].strip().lower()
     ip = data["ip"].strip()
+    allow_acme_challenge = data.get("allow_acme_challenge", False)
     if not hostname or not ip:
         return jsonify({"error": "Hostname and IP cannot be empty"}), 400
+    if not isinstance(allow_acme_challenge, bool):
+        return jsonify({"error": "allow_acme_challenge must be a Boolean"}), 400
 
     records = load_local_records()
 
@@ -786,17 +794,75 @@ def api_local_records_add():
         if rec["hostname"] == hostname:
             return jsonify({"error": "Hostname already exists"}), 409
 
-    records.append({"hostname": hostname, "ip": ip})
+    previous_records = [record.copy() for record in records]
+    records.append({
+        "hostname": hostname,
+        "ip": ip,
+        "allow_acme_challenge": allow_acme_challenge,
+    })
     save_local_records(records)
     write_local_records_conf(records)
 
-    _, reload_ok = run_unbound_control(["reload"], retries=1)
+    reload_output, reload_ok = run_unbound_control(["reload"], retries=1)
+    if not reload_ok:
+        save_local_records(previous_records)
+        write_local_records_conf(previous_records)
+        rollback_output, rollback_ok = run_unbound_control(["reload"], retries=1)
+        detail = reload_output
+        if not rollback_ok:
+            detail += f" Rollback reload also failed: {rollback_output}"
+        return jsonify({
+            "error": "Failed to reload Unbound; the new record was removed.",
+            "detail": detail,
+        }), 500
+
     return jsonify({
         "status": "added",
         "hostname": hostname,
         "ip": ip,
-        "reload_ok": reload_ok,
+        "allow_acme_challenge": allow_acme_challenge,
+        "reload_ok": True,
     }), 201
+
+
+@app.route("/api/local-records/<int:idx>", methods=["PATCH"])
+@synchronized_settings
+def api_local_records_update(idx):
+    """Enable or disable public ACME DNS-01 lookups for a local record."""
+    data = request.get_json()
+    if not data or not isinstance(data.get("allow_acme_challenge"), bool):
+        return jsonify({"error": "allow_acme_challenge must be a Boolean"}), 400
+
+    records = load_local_records()
+    if idx < 0 or idx >= len(records):
+        return jsonify({"error": "Invalid index"}), 404
+
+    enabled = data["allow_acme_challenge"]
+    previous = records[idx].copy()
+    records[idx]["allow_acme_challenge"] = enabled
+    save_local_records(records)
+    write_local_records_conf(records)
+
+    reload_output, reload_ok = run_unbound_control(["reload"], retries=1)
+    if not reload_ok:
+        records[idx] = previous
+        save_local_records(records)
+        write_local_records_conf(records)
+        rollback_output, rollback_ok = run_unbound_control(["reload"], retries=1)
+        detail = reload_output
+        if not rollback_ok:
+            detail += f" Rollback reload also failed: {rollback_output}"
+        return jsonify({
+            "error": "Failed to reload Unbound; the previous setting was restored.",
+            "detail": detail,
+        }), 500
+
+    return jsonify({
+        "status": "updated",
+        "hostname": records[idx]["hostname"],
+        "allow_acme_challenge": enabled,
+        "reload_ok": True,
+    })
 
 
 @app.route("/api/local-records/<int:idx>", methods=["DELETE"])
@@ -807,15 +873,28 @@ def api_local_records_remove(idx):
     if idx < 0 or idx >= len(records):
         return jsonify({"error": "Invalid index"}), 404
 
+    previous_records = [record.copy() for record in records]
     removed = records.pop(idx)
     save_local_records(records)
     write_local_records_conf(records)
 
-    _, reload_ok = run_unbound_control(["reload"], retries=1)
+    reload_output, reload_ok = run_unbound_control(["reload"], retries=1)
+    if not reload_ok:
+        save_local_records(previous_records)
+        write_local_records_conf(previous_records)
+        rollback_output, rollback_ok = run_unbound_control(["reload"], retries=1)
+        detail = reload_output
+        if not rollback_ok:
+            detail += f" Rollback reload also failed: {rollback_output}"
+        return jsonify({
+            "error": "Failed to reload Unbound; the record was restored.",
+            "detail": detail,
+        }), 500
+
     return jsonify({
         "status": "removed",
         "hostname": removed["hostname"],
-        "reload_ok": reload_ok,
+        "reload_ok": True,
     })
 
 

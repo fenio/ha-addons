@@ -14,7 +14,7 @@ A self-managed Home Assistant add-on providing a recursive DNS resolver using [U
 ### DNS Management
 - **Blocklists**: Add/remove blocklist URLs, one-click refresh & apply, automatic daily refresh
 - **Whitelist**: Exclude domains from blocklists
-- **Local DNS Records**: Custom hostname-to-IP mappings with instant apply
+- **Local DNS Records**: Custom hostname-to-IP mappings with instant apply and per-record public ACME DNS-01 exceptions
 - **Cache Controls**: Flush individual domains or entire cache
 - **Query Log**: Recent queries viewer, top domains chart, filter by domain/client
 - **Backup & Restore**: Export or import all web UI settings as a portable JSON file
@@ -95,9 +95,15 @@ On first startup, the addon creates a default configuration. After that, all set
 
 ### Backup and Restore
 
-The **Advanced** tab can export all web UI settings, blocklist URLs, whitelist entries, local records, stub zones, and the known custom configuration files to a versioned JSON backup. Import validates the complete backup, restores the previous files if configuration validation or reload fails, and applies the settings. After import, refresh blocklists from the **Blocklists** tab (or restart the addon) to download and apply their contents.
+The **Advanced** tab can export all web UI settings, blocklist URLs, whitelist entries, local records (including ACME DNS-01 choices), stub zones, and the known custom configuration files to a versioned JSON backup. Import validates the complete backup, restores the previous files if configuration validation or reload fails, and applies the settings. Version 1 backups remain supported and default their local records to ACME DNS-01 disabled. After import, refresh blocklists from the **Blocklists** tab (or restart the addon) to download and apply their contents.
 
 The export includes `unbound.conf`, `unbound-overlay.conf`, and `unbound-extra.conf` when present. Any other files referenced by custom configuration, such as zone files or certificates, must be backed up separately. Home Assistant backups remain the recommended way to back up the complete addon data directory.
+
+### Local Records and ACME
+
+Local records use Unbound `redirect` zones so the configured A record remains authoritative on your network. Enable **ACME DNS-01** on an individual record to add a more-specific transparent zone for `_acme-challenge.<hostname>`. Public certificate authorities can then resolve DNS-01 challenges without changing the local A response or exposing unrelated subdomains.
+
+If you previously added the same `_acme-challenge` exception to `unbound-overlay.conf`, remove that manual line before enabling the record's ACME DNS-01 switch to avoid duplicate local-zone declarations.
 
 ## Network Configuration
 

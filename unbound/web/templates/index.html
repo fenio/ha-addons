@@ -772,11 +772,18 @@
     <div class="tab-content" id="tab-local-records">
         <div class="section">
             <h2>Local DNS Records</h2>
-            <p class="text-muted" style="margin-bottom:12px">Custom hostname-to-IP mappings. Changes take effect immediately.</p>
+            <p class="text-muted" style="margin-bottom:12px">Custom hostname-to-IP mappings. Enable ACME DNS-01 to let public certificate authorities resolve <code>_acme-challenge.&lt;hostname&gt;</code>. Changes take effect immediately.</p>
             <div id="local-records-status" class="status-msg"></div>
-            <div class="add-form">
+            <div class="add-form" style="flex-wrap:wrap">
                 <input type="text" id="new-record-hostname" placeholder="myserver.local">
                 <input type="text" id="new-record-ip" placeholder="192.168.1.100" style="max-width:200px">
+                <div style="display:flex;align-items:center;gap:8px;white-space:nowrap">
+                    <label class="toggle" title="Allow public ACME DNS-01 challenge lookups">
+                        <input type="checkbox" id="new-record-allow-acme">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>ACME DNS-01</span>
+                </div>
                 <button class="btn-primary" onclick="addLocalRecord()">Add</button>
             </div>
             <table>
@@ -785,11 +792,12 @@
                         <th>#</th>
                         <th>Hostname</th>
                         <th>IP Address</th>
+                        <th>ACME DNS-01</th>
                         <th>Action</th>
                     </tr>
                 </thead>
                 <tbody id="local-records-body">
-                    <tr><td colspan="4" class="empty-state">No local records</td></tr>
+                    <tr><td colspan="5" class="empty-state">No local records</td></tr>
                 </tbody>
             </table>
         </div>
@@ -1593,7 +1601,7 @@
                 var data = await res.json();
                 var tbody = document.getElementById("local-records-body");
                 if (data.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No local records</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No local records</td></tr>';
                     return;
                 }
                 tbody.innerHTML = data.map(function(rec, i) {
@@ -1601,6 +1609,10 @@
                         '<td>' + i + '</td>' +
                         '<td>' + escapeHtml(rec.hostname) + '</td>' +
                         '<td>' + escapeHtml(rec.ip) + '</td>' +
+                        '<td><label class="toggle" title="Allow public ACME DNS-01 challenge lookups">' +
+                            '<input type="checkbox" ' + (rec.allow_acme_challenge ? 'checked ' : '') +
+                            'onchange="updateLocalRecordAcme(' + i + ', this.checked, this)">' +
+                            '<span class="toggle-slider"></span></label></td>' +
                         '<td><button class="btn-danger btn-sm" onclick="removeLocalRecord(' + i + ')">Remove</button></td>' +
                         '</tr>';
                 }).join("");
@@ -1612,6 +1624,7 @@
         async function addLocalRecord() {
             var hostnameInput = document.getElementById("new-record-hostname");
             var ipInput = document.getElementById("new-record-ip");
+            var allowAcmeInput = document.getElementById("new-record-allow-acme");
             var hostname = hostnameInput.value.trim();
             var ip = ipInput.value.trim();
             if (!hostname || !ip) return;
@@ -1619,18 +1632,52 @@
                 var res = await fetch(apiUrl("/api/local-records"), {
                     method: "POST",
                     headers: {"Content-Type": "application/json"},
-                    body: JSON.stringify({hostname: hostname, ip: ip})
+                    body: JSON.stringify({
+                        hostname: hostname,
+                        ip: ip,
+                        allow_acme_challenge: allowAcmeInput.checked
+                    })
                 });
                 var data = await res.json();
                 if (res.ok) {
                     hostnameInput.value = "";
                     ipInput.value = "";
+                    allowAcmeInput.checked = false;
                     showSectionStatus("local-records-status", "Record added and Unbound reloaded.", "success");
                     fetchLocalRecords();
                 } else {
                     showSectionStatus("local-records-status", data.error || "Failed to add", "error");
                 }
             } catch (e) {
+                showSectionStatus("local-records-status", "Failed: " + e.message, "error");
+            }
+        }
+
+        async function updateLocalRecordAcme(idx, enabled, input) {
+            input.disabled = true;
+            try {
+                var res = await fetch(apiUrl("/api/local-records/" + idx), {
+                    method: "PATCH",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({allow_acme_challenge: enabled})
+                });
+                var data = await res.json();
+                if (res.ok) {
+                    showSectionStatus(
+                        "local-records-status",
+                        "ACME DNS-01 " + (enabled ? "enabled" : "disabled") + " and Unbound reloaded.",
+                        "success"
+                    );
+                    await fetchLocalRecords();
+                    input.disabled = false;
+                } else {
+                    input.checked = !enabled;
+                    input.disabled = false;
+                    showSectionStatus("local-records-status", data.error || "Failed to update", "error");
+                }
+            } catch (e) {
+                input.checked = !enabled;
+                input.disabled = false;
                 showSectionStatus("local-records-status", "Failed: " + e.message, "error");
             }
         }

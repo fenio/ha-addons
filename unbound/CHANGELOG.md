@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.25.2-ha2] - 2026/08/19
+
+- Add a per-record ACME DNS-01 switch that preserves local A resolution while allowing public certificate authorities to resolve `_acme-challenge.<hostname>`
+- Preserve ACME DNS-01 choices in version 2 settings backups while continuing to accept version 1 backups
+- Run the Unbound unit tests before building release images
+
 ## [1.25.2-ha1] - 2026/08/14
 
 - Upgrade the Alpine-packaged Unbound from 1.25.1 to 1.25.2
