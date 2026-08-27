@@ -1,4 +1,11 @@
 # Changelog
+## [1.10.5-ha1] - 2026/08/27
+
+- Upgrade Omni 1.10.3 to 1.10.5
+- Add listing and revocation of Kubernetes token signing keys through `omnictl`
+- Include fixes for etcd backup interval editing, installation media downloads, exposed-service links, KubeSpan version checks, identity API timeouts, and provision API logging
+- No upstream dependency, addon config schema, startup argument, or persistent data migration changes
+
 ## [1.10.3-ha1] - 2026/08/15
 
 - Upgrade Omni 1.10.2 to 1.10.3
