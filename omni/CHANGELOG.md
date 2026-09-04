@@ -1,4 +1,12 @@
 # Changelog
+## [1.10.6-ha1] - 2026/09/04
+
+- Upgrade Omni 1.10.5 to 1.10.6
+- Improve Talos 1.14 META key handling, UUID-conflicting machine addressing, image factory tracking, and SideroLink API labeling
+- Include fixes for `omnictl machine-logs`, replacement gRPC streams, WireGuard error handling, and filtered short IPv6 packets
+- Update COSI, SideroLink, gRPC, Go, and related dependencies
+- No addon config schema, startup argument, or persistent data migration changes
+
 ## [1.10.5-ha1] - 2026/08/27
 
 - Upgrade Omni 1.10.3 to 1.10.5
