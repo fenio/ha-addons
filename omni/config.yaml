@@ -1,7 +1,7 @@
 name: "Omni"
 description: "Siderolabs Omni - Kubernetes cluster management platform for Talos Linux"
 url: "https://github.com/fenio/ha-addons/tree/main/omni"
-version: "1.10.6-ha1"
+version: "1.11.0-ha1"
 slug: "omni"
 init: false
 arch:
@@ -53,6 +53,7 @@ options:
   # Authentication - SAML
   auth_saml_enabled: false
   auth_saml_url: ""
+  auth_recovery_admin: ""
   
   # Authentication - OIDC
   auth_oidc_enabled: false
@@ -106,6 +107,7 @@ schema:
   # SAML
   auth_saml_enabled: bool
   auth_saml_url: str?
+  auth_recovery_admin: str?
   
   # OIDC
   auth_oidc_enabled: bool

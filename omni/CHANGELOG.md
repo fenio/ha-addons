@@ -1,4 +1,13 @@
 # Changelog
+## [1.11.0-ha1] - 2026/09/07
+
+- Upgrade Omni 1.10.6 to 1.11.0
+- Add first-class install-disk resources, authenticated installation-media downloads, Kubernetes token-key revocation, and label search on cluster create and scale pages
+- Add the optional `auth_recovery_admin` setting for recovery from SAML administrator lockouts
+- Include Talos 1.14 compatibility, machine lifecycle, authentication, SideroLink, security-reporting, and frontend improvements
+- Compatibility note: config patches can no longer set the Talos install disk; select it through Omni's dedicated install-disk resource instead
+- Existing addon settings and persistent data continue to be used as-is
+
 ## [1.10.6-ha1] - 2026/09/04
 
 - Upgrade Omni 1.10.5 to 1.10.6

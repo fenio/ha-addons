@@ -92,7 +92,10 @@ initial_users:
 ```yaml
 auth_saml_enabled: true
 auth_saml_url: "https://login.microsoftonline.com/.../federationmetadata/..."
+auth_recovery_admin: "admin@example.com"
 ```
+
+`auth_recovery_admin` is optional. The user must already exist; Omni promotes it to Admin on every start as a recovery path if SAML role rules remove administrator access.
 
 #### OIDC
 ```yaml

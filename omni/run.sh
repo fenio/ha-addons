@@ -33,6 +33,7 @@ WIREGUARD_PORT=$(bashio::config 'wireguard_port')
 # Authentication settings
 AUTH_AUTH0_ENABLED=$(bashio::config 'auth_auth0_enabled' || true)
 AUTH_SAML_ENABLED=$(bashio::config 'auth_saml_enabled' || true)
+AUTH_RECOVERY_ADMIN=$(bashio::config 'auth_recovery_admin' || true)
 AUTH_OIDC_ENABLED=$(bashio::config 'auth_oidc_enabled' || true)
 
 # Check that at least one auth method is enabled
@@ -162,6 +163,10 @@ if [ "${AUTH_SAML_ENABLED}" = "true" ]; then
         "--auth-saml-enabled=true"
         "--auth-saml-url=${SAML_URL}"
     )
+fi
+
+if [ -n "${AUTH_RECOVERY_ADMIN}" ]; then
+    OMNI_ARGS+=("--recovery-admin=${AUTH_RECOVERY_ADMIN}")
 fi
 
 # Configure authentication - OIDC
