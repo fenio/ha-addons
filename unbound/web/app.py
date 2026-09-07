@@ -20,6 +20,11 @@ _spec = importlib.util.spec_from_file_location("config_gen", _config_gen_path)
 config_gen = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(config_gen)
 
+_blocklist_parser_path = os.path.join(os.path.dirname(__file__), "blocklist_parser.py")
+_spec = importlib.util.spec_from_file_location("blocklist_parser", _blocklist_parser_path)
+blocklist_parser = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(blocklist_parser)
+
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
@@ -45,12 +50,6 @@ SETTINGS_BACKUP_FILES = {
     "unbound-overlay.conf": OVERLAY_FILE,
     "unbound-extra.conf": EXTRA_FILE,
 }
-
-_BLOCKLIST_SKIP_DOMAINS = frozenset({
-    "localhost", "localhost.localdomain", "local", "broadcasthost",
-    "ip6-localhost", "ip6-loopback", "ip6-localnet",
-    "ip6-mcastprefix", "ip6-allnodes", "ip6-allrouters", "ip6-allhosts",
-})
 
 # Matches unbound query/reply log lines. Both share the first five fields:
 #   [1708012345] unbound[1:0] info: 192.168.1.1 example.com. A IN
@@ -618,6 +617,7 @@ def _do_blocklist_refresh():
     if not _blocklist_refresh_lock.acquire(blocking=False):
         return {
             "status": "busy",
+            "error": "A blocklist refresh is already running.",
             "domains_blocked": 0,
             "errors": [{"url": "", "error": "A refresh is already running."}],
             "reload_ok": False,
@@ -631,6 +631,7 @@ def _do_blocklist_refresh():
             status = load_blocklist_status()
 
         all_domains = set()
+        parsed_sources = 0
         errors = []
 
         for url in blocklists:
@@ -638,7 +639,8 @@ def _do_blocklist_refresh():
             try:
                 result = subprocess.run(
                     [
-                        "curl", "-sS", "--max-time", "30",
+                        "curl", "-fsS", "--max-time", "30",
+                        "--max-filesize", "10485760",
                         "--proto", "=http,https", "--", url,
                     ],
                     capture_output=True, text=True, timeout=35
@@ -652,17 +654,19 @@ def _do_blocklist_refresh():
                     }
                     continue
 
-                for line in result.stdout.split("\n"):
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    parts = line.split()
-                    if len(parts) >= 2 and parts[0] in ("0.0.0.0", "127.0.0.1"):
-                        domain = parts[1].strip().lower()
-                        if domain and domain not in _BLOCKLIST_SKIP_DOMAINS:
-                            url_domains.add(domain)
+                url_domains = blocklist_parser.parse_domains(result.stdout.splitlines())
+                if not url_domains:
+                    error = "No supported domains found in downloaded list."
+                    errors.append({"url": url, "error": error})
+                    status[url] = {
+                        "domains": 0,
+                        "last_refresh": time.time(),
+                        "error": error,
+                    }
+                    continue
 
                 all_domains |= url_domains
+                parsed_sources += 1
                 status[url] = {
                     "domains": len(url_domains),
                     "last_refresh": time.time(),
@@ -675,6 +679,18 @@ def _do_blocklist_refresh():
                     "last_refresh": time.time(),
                     "error": str(e),
                 }
+
+        if blocklists and parsed_sources == 0:
+            with _settings_lock:
+                save_blocklist_status(status)
+
+            return {
+                "status": "error",
+                "error": "No configured blocklist could be downloaded and parsed; existing rules were kept.",
+                "domains_blocked": 0,
+                "errors": errors,
+                "reload_ok": False,
+            }
 
         # Subtract whitelisted domains
         all_domains -= whitelist
@@ -690,20 +706,46 @@ def _do_blocklist_refresh():
                 })
                 return {
                     "status": "stale",
+                    "error": "Settings changed during refresh; results were not applied.",
                     "domains_blocked": 0,
                     "errors": errors,
                     "reload_ok": False,
                 }
 
-            save_blocklist_status(status)
-            content = "".join(
-                f'local-zone: "{domain}." always_refuse\n'
-                for domain in sorted(all_domains)
-            )
+            old_content = None
+            if os.path.exists(BLOCKLIST_CONF):
+                with open(BLOCKLIST_CONF, "rb") as f:
+                    old_content = f.read()
+
+            content = blocklist_parser.render_unbound_config(all_domains)
             _write_bytes_atomic(BLOCKLIST_CONF, content.encode("utf-8"))
 
             # Reload unbound to pick up changes
             _, reload_ok = run_unbound_control(["reload"], retries=1)
+            if not reload_ok:
+                if old_content is None:
+                    os.unlink(BLOCKLIST_CONF)
+                else:
+                    _write_bytes_atomic(BLOCKLIST_CONF, old_content)
+                _, rollback_ok = run_unbound_control(["reload"], retries=1)
+
+                if rollback_ok:
+                    error = "Unbound rejected the refreshed blocklists; existing rules were restored."
+                else:
+                    error = (
+                        "Unbound rejected the refreshed blocklists. The previous config file was restored, "
+                        "but its reload also failed; restart the addon to reactivate it."
+                    )
+
+                return {
+                    "status": "error",
+                    "error": error,
+                    "domains_blocked": len(all_domains),
+                    "errors": errors,
+                    "reload_ok": False,
+                }
+
+            save_blocklist_status(status)
 
         return {
             "status": "refreshed",
@@ -718,7 +760,13 @@ def _do_blocklist_refresh():
 @app.route("/api/blocklists/refresh", methods=["POST"])
 def api_blocklists_refresh():
     """Re-download all blocklists, subtract whitelist, and reload unbound."""
-    return jsonify(_do_blocklist_refresh())
+    result = _do_blocklist_refresh()
+    if result["status"] == "busy" or result["status"] == "stale":
+        return jsonify(result), 409
+    if result["status"] == "error":
+        return jsonify(result), 422
+
+    return jsonify(result)
 
 
 # --- Whitelist ---

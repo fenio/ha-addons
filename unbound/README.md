@@ -12,7 +12,7 @@ A self-managed Home Assistant add-on providing a recursive DNS resolver using [U
 - Dark mode
 
 ### DNS Management
-- **Blocklists**: Add/remove blocklist URLs, one-click refresh & apply, automatic daily refresh
+- **Blocklists**: Add/remove plain-domain, hosts, wildcard-domain, and Adblock-format list URLs; one-click refresh & apply; automatic daily refresh
 - **Whitelist**: Exclude domains from blocklists
 - **Local DNS Records**: Custom hostname-to-IP mappings with instant apply and per-record public ACME DNS-01 exceptions
 - **Cache Controls**: Flush individual domains or entire cache
@@ -50,6 +50,10 @@ A self-managed Home Assistant add-on providing a recursive DNS resolver using [U
 Settings are organized across dedicated tabs (Network, Performance, Cache, Security, Advanced). Changes are applied immediately via hot-reload — no addon restart needed (except for thread count changes).
 
 The only option in the HA addon panel is `log_level` for controlling addon log verbosity.
+
+### Blocklist Formats
+
+Blocklists may contain one domain per line, hosts entries such as `0.0.0.0 example.com`, wildcard domains such as `*.example.com`, or Adblock domain rules such as `||example.com^`. Invalid entries are ignored, and existing compiled rules are retained if none of the configured lists can be downloaded and parsed.
 
 ### Custom Configuration
 

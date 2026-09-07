@@ -1,6 +1,7 @@
 #!/usr/bin/with-contenv bashio
 # shellcheck shell=bash
 set -e
+set -o pipefail
 
 bashio::log.level "$(bashio::config 'log_level')"
 bashio::log.info "Starting Unbound DNS resolver ($(bashio::addon.version))..."
@@ -25,7 +26,7 @@ apply_blocklists() {
 
     if [ ! -f "${BLOCKLISTS_FILE}" ]; then
         # No blocklists configured, write empty conf
-        > "${BLOCKLIST_CONF}"
+        : > "${BLOCKLIST_CONF}"
         return
     fi
 
@@ -33,43 +34,41 @@ apply_blocklists() {
     count=$(jq '. | length' "${BLOCKLISTS_FILE}")
     if [ "${count}" = "0" ]; then
         bashio::log.info "No blocklists configured"
-        > "${BLOCKLIST_CONF}"
+        : > "${BLOCKLIST_CONF}"
         return
     fi
 
-    local tmpfile
+    local tmpfile parsed_sources
     tmpfile=$(mktemp)
+    parsed_sources=0
 
     for i in $(seq 0 $((count - 1))); do
         local url
         url=$(jq -r ".[$i]" "${BLOCKLISTS_FILE}")
         bashio::log.info "  Downloading blocklist: ${url}"
 
-        if curl -sS --max-time 30 --proto '=http,https' -- "${url}" 2>/dev/null | awk '
-            BEGIN {
-                skip["localhost"]=1; skip["localhost.localdomain"]=1
-                skip["local"]=1; skip["broadcasthost"]=1
-                skip["ip6-localhost"]=1; skip["ip6-loopback"]=1
-                skip["ip6-localnet"]=1; skip["ip6-mcastprefix"]=1
-                skip["ip6-allnodes"]=1; skip["ip6-allrouters"]=1
-                skip["ip6-allhosts"]=1
-            }
-            {
-                # Strip comments and carriage returns
-                sub(/#.*/, ""); gsub(/\r/, "")
-                if (NF < 2) next
-                ip = $1; domain = tolower($2)
-                if (ip != "0.0.0.0" && ip != "127.0.0.1") next
-                if (domain in skip) next
-                if (domain == "") next
-                printf "local-zone: \"%s.\" always_refuse\n", domain
-            }
-        ' >> "${tmpfile}"; then
-            :
+        local parsed_file
+        parsed_file=$(mktemp)
+
+        if curl -fsS --max-time 30 --max-filesize 10485760 --proto '=http,https' -- "${url}" \
+            | python3 /web/blocklist_parser.py > "${parsed_file}"; then
+            cat "${parsed_file}" >> "${tmpfile}"
+            parsed_sources=$((parsed_sources + 1))
         else
-            bashio::log.warning "  Failed to download: ${url}"
+            bashio::log.warning "  Failed to download or parse: ${url}"
         fi
+
+        rm -f "${parsed_file}"
     done
+
+    if [ "${parsed_sources}" = "0" ]; then
+        rm -f "${tmpfile}"
+        if [ ! -f "${BLOCKLIST_CONF}" ]; then
+            : > "${BLOCKLIST_CONF}"
+        fi
+        bashio::log.warning "No blocklists could be applied; keeping existing rules"
+        return
+    fi
 
     # Sort and deduplicate
     sort -u "${tmpfile}" > "${BLOCKLIST_CONF}"

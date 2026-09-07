@@ -364,6 +364,206 @@ class LocalRecordTests(unittest.TestCase):
             self.assertIn("_acme-challenge", records_conf.read_text())
             self.assertEqual(2, reload_unbound.call_count)
 
+
+class BlocklistParserTests(unittest.TestCase):
+    def test_parses_oisd_plain_domain_format(self):
+        domains = unbound_app.blocklist_parser.parse_domains([
+            "# Syntax: Domains (wildcards) without *.",
+            "0--foodwarez.da.ru",
+            "example.com",
+            "subdomain.example.net",
+        ])
+
+        self.assertEqual(
+            {"0--foodwarez.da.ru", "example.com", "subdomain.example.net"},
+            domains,
+        )
+
+    def test_parses_hosts_wildcard_and_adblock_formats(self):
+        domains = unbound_app.blocklist_parser.parse_domains([
+            "0.0.0.0 ads.example.com tracker.example.net # comment",
+            "127.0.0.1 telemetry.example.org",
+            "*.wildcard.example.com",
+            "||adblock.example.com^",
+            "||modified.example.com^$third-party",
+            "||excepted.example.com^",
+            "@@||excepted.example.com^",
+            "||disabled.example.com^",
+            "||disabled.example.com^$badfilter",
+        ])
+
+        self.assertEqual(
+            {
+                "ads.example.com",
+                "tracker.example.net",
+                "telemetry.example.org",
+                "wildcard.example.com",
+                "adblock.example.com",
+                "modified.example.com",
+            },
+            domains,
+        )
+
+    def test_rejects_allow_rules_ips_and_invalid_domains(self):
+        domains = unbound_app.blocklist_parser.parse_domains([
+            "@@||allowed.example.com^",
+            "192.0.2.1",
+            "invalid_domain.example",
+            'example.com\" always_refuse',
+            "not-a-domain",
+        ])
+
+        self.assertEqual(set(), domains)
+
+    def test_renders_sorted_unbound_rules(self):
+        content = unbound_app.blocklist_parser.render_unbound_config({
+            "z.example",
+            "a.example",
+        })
+
+        self.assertEqual(
+            'local-zone: "a.example." always_refuse\n'
+            'local-zone: "z.example." always_refuse\n',
+            content,
+        )
+
+    def test_rejects_lists_over_the_domain_limit(self):
+        with patch.object(unbound_app.blocklist_parser, "MAX_DOMAINS", 1):
+            with self.assertRaisesRegex(ValueError, "domain limit"):
+                unbound_app.blocklist_parser.parse_domains([
+                    "one.example",
+                    "two.example",
+                ])
+
+
+class BlocklistRefreshTests(unittest.TestCase):
+    def _path_patches(self, root):
+        return [
+            patch.object(unbound_app, "BLOCKLISTS_FILE", str(root / "blocklists.json")),
+            patch.object(
+                unbound_app, "BLOCKLIST_STATUS_FILE", str(root / "blocklist_status.json")
+            ),
+            patch.object(unbound_app, "BLOCKLIST_CONF", str(root / "blocklist.conf")),
+            patch.object(unbound_app, "WHITELIST_FILE", str(root / "whitelist.json")),
+        ]
+
+    def test_refresh_applies_plain_domain_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blocklists.json").write_text('["https://example.com/domains"]')
+            patches = self._path_patches(root)
+            for item in patches:
+                item.start()
+            self.addCleanup(lambda: [item.stop() for item in reversed(patches)])
+
+            with (
+                patch.object(
+                    unbound_app.subprocess,
+                    "run",
+                    return_value=types.SimpleNamespace(
+                        returncode=0,
+                        stdout="# OISD-style list\nads.example\ntracker.example\n",
+                        stderr="",
+                    ),
+                ) as run_curl,
+                patch.object(
+                    unbound_app, "run_unbound_control", return_value=("ok", True)
+                ) as reload_unbound,
+            ):
+                result = unbound_app._do_blocklist_refresh()
+
+            self.assertEqual("refreshed", result["status"])
+            self.assertEqual(2, result["domains_blocked"])
+            self.assertEqual(
+                'local-zone: "ads.example." always_refuse\n'
+                'local-zone: "tracker.example." always_refuse\n',
+                (root / "blocklist.conf").read_text(),
+            )
+            reload_unbound.assert_called_once()
+            curl_args = run_curl.call_args.args[0]
+            self.assertIn("-fsS", curl_args)
+            self.assertIn("--max-filesize", curl_args)
+
+    def test_refresh_keeps_existing_rules_when_no_source_parses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blocklists.json").write_text('["https://example.com/unsupported"]')
+            (root / "blocklist.conf").write_text(
+                'local-zone: "existing.example." always_refuse\n'
+            )
+            patches = self._path_patches(root)
+            for item in patches:
+                item.start()
+            self.addCleanup(lambda: [item.stop() for item in reversed(patches)])
+
+            with (
+                patch.object(
+                    unbound_app.subprocess,
+                    "run",
+                    return_value=types.SimpleNamespace(
+                        returncode=0,
+                        stdout="unsupported content\n",
+                        stderr="",
+                    ),
+                ),
+                patch.object(unbound_app, "run_unbound_control") as reload_unbound,
+            ):
+                result = unbound_app._do_blocklist_refresh()
+
+            self.assertEqual("error", result["status"])
+            self.assertIn("existing rules were kept", result["error"])
+            self.assertEqual(
+                'local-zone: "existing.example." always_refuse\n',
+                (root / "blocklist.conf").read_text(),
+            )
+            reload_unbound.assert_not_called()
+
+    def test_refresh_restores_rules_when_unbound_reload_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blocklists.json").write_text('["https://example.com/domains"]')
+            (root / "blocklist.conf").write_text(
+                'local-zone: "existing.example." always_refuse\n'
+            )
+            (root / "blocklist_status.json").write_text(
+                '{"https://example.com/old": {"domains": 1}}'
+            )
+            patches = self._path_patches(root)
+            for item in patches:
+                item.start()
+            self.addCleanup(lambda: [item.stop() for item in reversed(patches)])
+
+            with (
+                patch.object(
+                    unbound_app.subprocess,
+                    "run",
+                    return_value=types.SimpleNamespace(
+                        returncode=0,
+                        stdout="new.example\n",
+                        stderr="",
+                    ),
+                ),
+                patch.object(
+                    unbound_app,
+                    "run_unbound_control",
+                    side_effect=[("reload failed", False), ("restored", True)],
+                ) as reload_unbound,
+            ):
+                result = unbound_app._do_blocklist_refresh()
+
+            self.assertEqual("error", result["status"])
+            self.assertIn("existing rules were restored", result["error"])
+            self.assertEqual(
+                'local-zone: "existing.example." always_refuse\n',
+                (root / "blocklist.conf").read_text(),
+            )
+            self.assertEqual(
+                {"https://example.com/old": {"domains": 1}},
+                json.loads((root / "blocklist_status.json").read_text()),
+            )
+            self.assertEqual(2, reload_unbound.call_count)
+
+
 class BackupImportTests(unittest.TestCase):
     def _path_patches(self, root):
         return [

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.2-ha3] - 2026/09/07
+
+- Fix blocklists containing one domain per line being silently parsed as zero domains (issue #23)
+- Support plain-domain, hosts, wildcard-domain, and Adblock domain-rule formats through one shared, strictly validating parser
+- Report lists containing no supported domains as errors instead of successful empty refreshes
+- Keep existing compiled rules when every configured list fails to download or parse
+
 ## [1.25.2-ha2] - 2026/08/19
 
 - Add a per-record ACME DNS-01 switch that preserves local A resolution while allowing public certificate authorities to resolve `_acme-challenge.<hostname>`
