@@ -5,6 +5,7 @@ FROM ${BUILD_FROM}
 RUN apk add --no-cache \
     unbound \
     bash \
+    coreutils \
     jq \
     curl \
     drill \

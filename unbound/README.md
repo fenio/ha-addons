@@ -55,6 +55,8 @@ The only option in the HA addon panel is `log_level` for controlling addon log v
 
 Blocklists may contain one domain per line, hosts entries such as `0.0.0.0 example.com`, wildcard domains such as `*.example.com`, or Adblock domain rules such as `||example.com^`. Invalid entries are ignored, and existing compiled rules are retained if none of the configured lists can be downloaded and parsed.
 
+The standard safety limits are 10 MiB and 500,000 domains per source, 500,000 domains in the combined result, and 64 MiB of combined normalized temporary data. To process larger feeds, enable **Allow very large blocklists** under the **Advanced** tab. This expert setting raises those limits to 64 MiB per source, 3,000,000 domains per source and combined, and 256 MiB of combined normalized temporary data. Processing is disk-backed, but Unbound still needs enough memory to load every generated zone; multi-million-domain lists can require several GB of RAM, delay startup and reloads, or cause the addon to be terminated for excessive memory use.
+
 ### Custom Configuration
 
 For advanced users who need full control over `unbound.conf`:

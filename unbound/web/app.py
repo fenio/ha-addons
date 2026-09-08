@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -364,6 +365,32 @@ def _write_bytes_atomic(path, content, mode=None):
             os.unlink(tmp_path)
 
 
+def _copy_file_atomic(source_path, path, mode=None):
+    """Atomically replace a file without loading it into memory."""
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    if mode is None:
+        if os.path.exists(path) and not os.path.islink(path):
+            mode = os.stat(path).st_mode & 0o777
+        else:
+            mode = 0o600
+    tmp_path = None
+    try:
+        with (
+            open(source_path, "rb") as source,
+            tempfile.NamedTemporaryFile(dir=directory, delete=False) as tmp,
+        ):
+            tmp_path = tmp.name
+            shutil.copyfileobj(source, tmp)
+            tmp.flush()
+            os.fsync(tmp.fileno())
+        os.chmod(tmp_path, mode)
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 def _write_json_atomic(path, value):
     content = (json.dumps(value, indent=2) + "\n").encode("utf-8")
     _write_bytes_atomic(path, content)
@@ -612,6 +639,50 @@ def api_blocklists_remove(idx):
     return jsonify({"status": "removed", "url": removed})
 
 
+def _blocklist_limits(config):
+    if config.get("allow_large_blocklists") is True:
+        return (
+            blocklist_parser.EXPERT_MAX_BYTES,
+            blocklist_parser.EXPERT_MAX_DOMAINS,
+            blocklist_parser.EXPERT_MAX_AGGREGATE_BYTES,
+        )
+
+    return (
+        blocklist_parser.DEFAULT_MAX_BYTES,
+        blocklist_parser.DEFAULT_MAX_DOMAINS,
+        blocklist_parser.DEFAULT_MAX_AGGREGATE_BYTES,
+    )
+
+
+def _download_blocklist(url, output_path, max_bytes):
+    with open(output_path, "wb") as output:
+        result = subprocess.run(
+            [
+                "curl", "-fsS", "--max-time", "30",
+                "--max-filesize", str(max_bytes),
+                "--proto", "=http,https", "--", url,
+            ],
+            stdout=output,
+            stderr=subprocess.PIPE,
+            timeout=35,
+        )
+
+    if result.returncode == 0:
+        return None
+
+    error = result.stderr.decode("utf-8", errors="replace").strip()
+    return error or f"curl exited with status {result.returncode}"
+
+
+def _blocklist_settings_changed(blocklists, whitelist, allow_large_blocklists):
+    config = config_gen.load_config()
+    return (
+        load_blocklists() != blocklists
+        or load_whitelist() != whitelist
+        or (config.get("allow_large_blocklists") is True) != allow_large_blocklists
+    )
+
+
 def _do_blocklist_refresh():
     """Core blocklist refresh logic. Returns dict with results."""
     if not _blocklist_refresh_lock.acquire(blocking=False):
@@ -627,132 +698,184 @@ def _do_blocklist_refresh():
         with _settings_lock:
             blocklists = load_blocklists()
             whitelist_values = load_whitelist()
-            whitelist = set(domain.lower() for domain in whitelist_values)
             status = load_blocklist_status()
+            config = config_gen.load_config()
+            allow_large_blocklists = config.get("allow_large_blocklists") is True
+            max_bytes, max_domains, max_aggregate_bytes = _blocklist_limits(config)
 
-        all_domains = set()
         parsed_sources = 0
         errors = []
 
-        for url in blocklists:
-            url_domains = set()
-            try:
-                result = subprocess.run(
-                    [
-                        "curl", "-fsS", "--max-time", "30",
-                        "--max-filesize", "10485760",
-                        "--proto", "=http,https", "--", url,
-                    ],
-                    capture_output=True, text=True, timeout=35
-                )
-                if result.returncode != 0:
-                    errors.append({"url": url, "error": result.stderr})
-                    status[url] = {
-                        "domains": 0,
-                        "last_refresh": time.time(),
-                        "error": result.stderr.strip(),
-                    }
-                    continue
+        with tempfile.TemporaryDirectory(prefix="unbound-blocklist-refresh-") as tmpdir:
+            aggregate_path = os.path.join(tmpdir, "domains")
+            with open(aggregate_path, "wb") as aggregate:
+                for index, url in enumerate(blocklists):
+                    download_path = os.path.join(tmpdir, f"download-{index}")
+                    parsed_path = os.path.join(tmpdir, f"parsed-{index}")
+                    try:
+                        error = _download_blocklist(url, download_path, max_bytes)
+                        if error:
+                            errors.append({"url": url, "error": error})
+                            status[url] = {
+                                "domains": 0,
+                                "last_refresh": time.time(),
+                                "error": error,
+                            }
+                            continue
 
-                url_domains = blocklist_parser.parse_domains(result.stdout.splitlines())
-                if not url_domains:
-                    error = "No supported domains found in downloaded list."
-                    errors.append({"url": url, "error": error})
-                    status[url] = {
-                        "domains": 0,
-                        "last_refresh": time.time(),
-                        "error": error,
-                    }
-                    continue
+                        domain_count = blocklist_parser.parse_file(
+                            download_path,
+                            parsed_path,
+                            max_domains,
+                        )
+                        if domain_count == 0:
+                            error = "No supported domains found in downloaded list."
+                            errors.append({"url": url, "error": error})
+                            status[url] = {
+                                "domains": 0,
+                                "last_refresh": time.time(),
+                                "error": error,
+                            }
+                            continue
 
-                all_domains |= url_domains
-                parsed_sources += 1
-                status[url] = {
-                    "domains": len(url_domains),
-                    "last_refresh": time.time(),
-                    "error": None,
-                }
-            except Exception as e:
-                errors.append({"url": url, "error": str(e)})
-                status[url] = {
-                    "domains": 0,
-                    "last_refresh": time.time(),
-                    "error": str(e),
-                }
+                        if aggregate.tell() + os.path.getsize(parsed_path) > max_aggregate_bytes:
+                            error = (
+                                "Combined parsed blocklists exceed the temporary-data limit "
+                                f"of {max_aggregate_bytes // (1024 * 1024)} MiB."
+                            )
+                            errors.append({"url": url, "error": error})
+                            status[url] = {
+                                "domains": 0,
+                                "last_refresh": time.time(),
+                                "error": error,
+                            }
+                            continue
 
-        if blocklists and parsed_sources == 0:
-            with _settings_lock:
-                save_blocklist_status(status)
+                        with open(parsed_path, "rb") as parsed:
+                            shutil.copyfileobj(parsed, aggregate)
 
-            return {
-                "status": "error",
-                "error": "No configured blocklist could be downloaded and parsed; existing rules were kept.",
-                "domains_blocked": 0,
-                "errors": errors,
-                "reload_ok": False,
-            }
+                        parsed_sources += 1
+                        status[url] = {
+                            "domains": domain_count,
+                            "last_refresh": time.time(),
+                            "error": None,
+                        }
+                    except Exception as error:
+                        message = str(error)
+                        errors.append({"url": url, "error": message})
+                        status[url] = {
+                            "domains": 0,
+                            "last_refresh": time.time(),
+                            "error": message,
+                        }
+                    finally:
+                        for path in (download_path, parsed_path):
+                            try:
+                                os.unlink(path)
+                            except FileNotFoundError:
+                                pass
 
-        # Subtract whitelisted domains
-        all_domains -= whitelist
+            if blocklists and parsed_sources == 0:
+                with _settings_lock:
+                    if _blocklist_settings_changed(
+                        blocklists,
+                        whitelist_values,
+                        allow_large_blocklists,
+                    ):
+                        return {
+                            "status": "stale",
+                            "error": "Settings changed during refresh; results were not applied.",
+                            "domains_blocked": 0,
+                            "errors": errors,
+                            "reload_ok": False,
+                        }
+                    save_blocklist_status(status)
 
-        with _settings_lock:
-            if (
-                load_blocklists() != blocklists
-                or load_whitelist() != whitelist_values
-            ):
-                errors.append({
-                    "url": "",
-                    "error": "Settings changed during refresh; results were not applied.",
-                })
                 return {
-                    "status": "stale",
-                    "error": "Settings changed during refresh; results were not applied.",
+                    "status": "error",
+                    "error": "No configured blocklist could be downloaded and parsed; existing rules were kept.",
                     "domains_blocked": 0,
                     "errors": errors,
                     "reload_ok": False,
                 }
 
-            old_content = None
-            if os.path.exists(BLOCKLIST_CONF):
-                with open(BLOCKLIST_CONF, "rb") as f:
-                    old_content = f.read()
-
-            content = blocklist_parser.render_unbound_config(all_domains)
-            _write_bytes_atomic(BLOCKLIST_CONF, content.encode("utf-8"))
-
-            # Reload unbound to pick up changes
-            _, reload_ok = run_unbound_control(["reload"], retries=1)
-            if not reload_ok:
-                if old_content is None:
-                    os.unlink(BLOCKLIST_CONF)
-                else:
-                    _write_bytes_atomic(BLOCKLIST_CONF, old_content)
-                _, rollback_ok = run_unbound_control(["reload"], retries=1)
-
-                if rollback_ok:
-                    error = "Unbound rejected the refreshed blocklists; existing rules were restored."
-                else:
-                    error = (
-                        "Unbound rejected the refreshed blocklists. The previous config file was restored, "
-                        "but its reload also failed; restart the addon to reactivate it."
-                    )
+            candidate_path = os.path.join(tmpdir, "blocklist.conf")
+            try:
+                domains_blocked = blocklist_parser.compile_config(
+                    aggregate_path,
+                    whitelist_values,
+                    candidate_path,
+                    max_domains,
+                )
+            except (OSError, ValueError, subprocess.CalledProcessError) as error:
+                message = str(error)
+                errors.append({"url": "", "error": message})
 
                 return {
                     "status": "error",
-                    "error": error,
-                    "domains_blocked": len(all_domains),
+                    "error": f"Blocklist compilation failed; existing rules were kept. {message}",
+                    "domains_blocked": 0,
                     "errors": errors,
                     "reload_ok": False,
                 }
 
-            save_blocklist_status(status)
+            with _settings_lock:
+                if _blocklist_settings_changed(
+                    blocklists,
+                    whitelist_values,
+                    allow_large_blocklists,
+                ):
+                    errors.append({
+                        "url": "",
+                        "error": "Settings changed during refresh; results were not applied.",
+                    })
+                    return {
+                        "status": "stale",
+                        "error": "Settings changed during refresh; results were not applied.",
+                        "domains_blocked": 0,
+                        "errors": errors,
+                        "reload_ok": False,
+                    }
 
-        return {
-            "status": "refreshed",
-            "domains_blocked": len(all_domains),
-            "errors": errors,
-            "reload_ok": reload_ok,
-        }
+                backup_path = None
+                if os.path.exists(BLOCKLIST_CONF):
+                    backup_path = os.path.join(tmpdir, "blocklist.conf.previous")
+                    shutil.copy2(BLOCKLIST_CONF, backup_path)
+
+                _copy_file_atomic(candidate_path, BLOCKLIST_CONF)
+
+                _, reload_ok = run_unbound_control(["reload"], retries=1)
+                if not reload_ok:
+                    if backup_path is None:
+                        os.unlink(BLOCKLIST_CONF)
+                    else:
+                        _copy_file_atomic(backup_path, BLOCKLIST_CONF)
+                    _, rollback_ok = run_unbound_control(["reload"], retries=1)
+
+                    if rollback_ok:
+                        error = "Unbound rejected the refreshed blocklists; existing rules were restored."
+                    else:
+                        error = (
+                            "Unbound rejected the refreshed blocklists. The previous config file was restored, "
+                            "but its reload also failed; restart the addon to reactivate it."
+                        )
+
+                    return {
+                        "status": "error",
+                        "error": error,
+                        "domains_blocked": domains_blocked,
+                        "errors": errors,
+                        "reload_ok": False,
+                    }
+
+                save_blocklist_status(status)
+
+            return {
+                "status": "refreshed",
+                "domains_blocked": domains_blocked,
+                "errors": errors,
+                "reload_ok": reload_ok,
+            }
     finally:
         _blocklist_refresh_lock.release()
 

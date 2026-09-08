@@ -38,6 +38,18 @@ apply_blocklists() {
         return
     fi
 
+    local max_bytes max_domains max_aggregate_bytes
+    if jq -e '.allow_large_blocklists == true' /data/config.json >/dev/null 2>&1; then
+        max_bytes=67108864
+        max_domains=3000000
+        max_aggregate_bytes=268435456
+        bashio::log.warning "Expert mode enabled: allowing blocklists up to 64 MiB and 3,000,000 domains"
+    else
+        max_bytes=10485760
+        max_domains=500000
+        max_aggregate_bytes=67108864
+    fi
+
     local tmpfile parsed_sources
     tmpfile=$(mktemp)
     parsed_sources=0
@@ -50,10 +62,18 @@ apply_blocklists() {
         local parsed_file
         parsed_file=$(mktemp)
 
-        if curl -fsS --max-time 30 --max-filesize 10485760 --proto '=http,https' -- "${url}" \
-            | python3 /web/blocklist_parser.py > "${parsed_file}"; then
-            cat "${parsed_file}" >> "${tmpfile}"
-            parsed_sources=$((parsed_sources + 1))
+        if curl -fsS --max-time 30 --max-filesize "${max_bytes}" --proto '=http,https' -- "${url}" \
+            | python3 /web/blocklist_parser.py parse \
+                --max-domains "${max_domains}" --output "${parsed_file}"; then
+            local aggregate_size parsed_size
+            aggregate_size=$(wc -c < "${tmpfile}")
+            parsed_size=$(wc -c < "${parsed_file}")
+            if [ $((aggregate_size + parsed_size)) -le "${max_aggregate_bytes}" ]; then
+                cat "${parsed_file}" >> "${tmpfile}"
+                parsed_sources=$((parsed_sources + 1))
+            else
+                bashio::log.warning "  Combined parsed blocklists exceed the temporary-data limit"
+            fi
         else
             bashio::log.warning "  Failed to download or parse: ${url}"
         fi
@@ -70,34 +90,24 @@ apply_blocklists() {
         return
     fi
 
-    # Sort and deduplicate
-    sort -u "${tmpfile}" > "${BLOCKLIST_CONF}"
+    local blocked compiled_file
+    compiled_file=$(mktemp "${BLOCKLIST_CONF}.XXXXXX")
+    if blocked=$(python3 /web/blocklist_parser.py compile \
+        --max-domains "${max_domains}" \
+        --output "${compiled_file}" \
+        --whitelist "${WHITELIST_FILE}" \
+        "${tmpfile}"); then
+        mv "${compiled_file}" "${BLOCKLIST_CONF}"
+    else
+        rm -f "${compiled_file}" "${tmpfile}"
+        if [ ! -f "${BLOCKLIST_CONF}" ]; then
+            : > "${BLOCKLIST_CONF}"
+        fi
+        bashio::log.warning "Blocklist compilation failed; keeping existing rules"
+        return
+    fi
     rm -f "${tmpfile}"
 
-    # Subtract whitelisted domains
-    if [ -f "${WHITELIST_FILE}" ]; then
-        local wl_count
-        wl_count=$(jq '. | length' "${WHITELIST_FILE}")
-        if [ "${wl_count}" != "0" ]; then
-            local wl_tmpfile
-            wl_tmpfile=$(mktemp)
-            # Build a file of patterns to exclude (domain lines from whitelist)
-            jq -r '.[]' "${WHITELIST_FILE}" | while IFS= read -r wl_domain; do
-                # Match the exact local-zone line for this domain
-                echo "local-zone: \"${wl_domain}.\" always_refuse"
-            done > "${wl_tmpfile}"
-
-            if [ -s "${wl_tmpfile}" ]; then
-                grep -v -F -f "${wl_tmpfile}" "${BLOCKLIST_CONF}" > "${BLOCKLIST_CONF}.tmp" || true
-                mv "${BLOCKLIST_CONF}.tmp" "${BLOCKLIST_CONF}"
-                bashio::log.info "  Whitelist applied: removed $(wc -l < "${wl_tmpfile}") domain pattern(s)"
-            fi
-            rm -f "${wl_tmpfile}"
-        fi
-    fi
-
-    local blocked
-    blocked=$(wc -l < "${BLOCKLIST_CONF}")
     bashio::log.info "Blocklists applied: ${blocked} domains blocked"
 }
 

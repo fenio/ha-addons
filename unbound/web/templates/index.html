@@ -719,7 +719,7 @@
         <div class="section">
             <h2>Blocklists</h2>
             <div id="blocklist-status" class="status-msg"></div>
-            <p class="text-muted" style="margin-bottom:12px">Supported formats: one domain per line, hosts files, <code>*.example.com</code> wildcard domains, and <code>||example.com^</code> Adblock rules.</p>
+            <p class="text-muted" style="margin-bottom:12px">Supported formats: one domain per line, hosts files, <code>*.example.com</code> wildcard domains, and <code>||example.com^</code> Adblock rules. The standard limit is 10 MiB and 500,000 domains per source; expert mode is available under Advanced.</p>
             <div class="add-form">
                 <input type="text" id="new-url" placeholder="https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts">
                 <button class="btn-primary" onclick="addBlocklist()">Add</button>
@@ -1117,6 +1117,19 @@
                 <input type="file" id="settings-import-file" accept=".json,application/json" hidden onchange="importSettings(this.files[0])">
             </div>
             <p class="text-muted" style="margin-top:10px">Import replaces the current settings after validation. Refresh blocklists afterward to download their contents. Files referenced by a custom config beyond <code>unbound.conf</code>, <code>unbound-overlay.conf</code>, and <code>unbound-extra.conf</code> must be copied separately.</p>
+        </div>
+
+        <!-- Expert Blocklists -->
+        <div class="section">
+            <h2>Expert Blocklists</h2>
+            <div class="setting-row">
+                <div class="setting-label">Allow very large blocklists</div>
+                <div class="setting-input">
+                    <label class="toggle"><input type="checkbox" id="cfg-allow_large_blocklists"><span class="toggle-slider"></span></label>
+                    <p class="text-error" style="margin-top:6px"><strong>I understand the risk:</strong> raises limits to 64 MiB and 3,000,000 domains. Very large lists can require several GB of RAM, significantly delay startup and reloads, or cause the addon to be terminated for excessive memory use.</p>
+                    <p class="text-muted" style="margin-top:6px">Takes effect on the next blocklist refresh or addon restart. Limits remain enforced even in expert mode.</p>
+                </div>
+            </div>
         </div>
 
         <!-- Custom Config -->
@@ -1941,7 +1954,7 @@
 
         function renderSettings(config, schema) {
             // Boolean toggles
-            var boolKeys = ["custom_config", "do_ip4", "do_ip6", "prefer_ip4",
+            var boolKeys = ["custom_config", "allow_large_blocklists", "do_ip4", "do_ip6", "prefer_ip4",
                             "forward_tls", "prefetch", "minimal_responses",
                             "serve_expired", "aggressive_nsec",
                             "enable_dnssec", "qname_minimisation",
@@ -2011,7 +2024,7 @@
         function collectSettings() {
             var config = {};
             // Booleans
-            ["custom_config", "do_ip4", "do_ip6", "prefer_ip4",
+            ["custom_config", "allow_large_blocklists", "do_ip4", "do_ip6", "prefer_ip4",
              "forward_tls", "prefetch", "minimal_responses",
              "serve_expired", "aggressive_nsec",
              "enable_dnssec", "qname_minimisation",

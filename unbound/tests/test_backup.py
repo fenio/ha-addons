@@ -109,6 +109,7 @@ class BackupValidationTests(unittest.TestCase):
         self.assertEqual([], errors)
         self.assertEqual(4, backup["config"]["num_threads"])
         self.assertTrue(backup["config"]["enable_dnssec"])
+        self.assertFalse(backup["config"]["allow_large_blocklists"])
 
     def test_blocklist_urls_cannot_be_curl_options(self):
         data = _valid_backup()
@@ -428,12 +429,69 @@ class BlocklistParserTests(unittest.TestCase):
         )
 
     def test_rejects_lists_over_the_domain_limit(self):
-        with patch.object(unbound_app.blocklist_parser, "MAX_DOMAINS", 1):
-            with self.assertRaisesRegex(ValueError, "domain limit"):
-                unbound_app.blocklist_parser.parse_domains([
-                    "one.example",
-                    "two.example",
-                ])
+        with self.assertRaisesRegex(ValueError, "domain limit"):
+            unbound_app.blocklist_parser.parse_domains(
+                ["one.example", "two.example"],
+                max_domains=1,
+            )
+
+    def test_streams_parsed_domains_to_a_sorted_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "domains"
+            count = unbound_app.blocklist_parser.parse_to_file(
+                [
+                    "z.example\n",
+                    "a.example\n",
+                    "z.example\n",
+                    "||excepted.example^\n",
+                    "@@||excepted.example^\n",
+                ],
+                str(output),
+                max_domains=10,
+            )
+
+            self.assertEqual(2, count)
+            self.assertEqual("a.example\nz.example\n", output.read_text())
+
+    def test_source_limit_counts_unique_domains(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "domains"
+            count = unbound_app.blocklist_parser.parse_to_file(
+                ["same.example\n", "same.example\n", "same.example\n"],
+                str(output),
+                max_domains=1,
+            )
+
+            self.assertEqual(1, count)
+            self.assertEqual("same.example\n", output.read_text())
+
+    def test_streams_deduplicated_config_with_whitelist_and_total_limit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            domains = root / "domains"
+            output = root / "blocklist.conf"
+            domains.write_text("z.example\na.example\nz.example\n")
+
+            count = unbound_app.blocklist_parser.compile_config(
+                str(domains),
+                ["a.example"],
+                str(output),
+                max_domains=2,
+            )
+
+            self.assertEqual(1, count)
+            self.assertEqual(
+                'local-zone: "z.example." always_refuse\n',
+                output.read_text(),
+            )
+
+            with self.assertRaisesRegex(ValueError, "combined blocklists"):
+                unbound_app.blocklist_parser.compile_config(
+                    str(domains),
+                    [],
+                    str(output),
+                    max_domains=1,
+                )
 
 
 class BlocklistRefreshTests(unittest.TestCase):
@@ -447,6 +505,68 @@ class BlocklistRefreshTests(unittest.TestCase):
             patch.object(unbound_app, "WHITELIST_FILE", str(root / "whitelist.json")),
         ]
 
+    @staticmethod
+    def _download(content):
+        def download(_url, output_path, _max_bytes):
+            Path(output_path).write_text(content)
+            return None
+
+        return download
+
+    def test_selects_default_and_expert_limits(self):
+        parser = unbound_app.blocklist_parser
+
+        self.assertEqual(
+            (
+                parser.DEFAULT_MAX_BYTES,
+                parser.DEFAULT_MAX_DOMAINS,
+                parser.DEFAULT_MAX_AGGREGATE_BYTES,
+            ),
+            unbound_app._blocklist_limits({}),
+        )
+        self.assertEqual(
+            (
+                parser.EXPERT_MAX_BYTES,
+                parser.EXPERT_MAX_DOMAINS,
+                parser.EXPERT_MAX_AGGREGATE_BYTES,
+            ),
+            unbound_app._blocklist_limits({"allow_large_blocklists": True}),
+        )
+
+    def test_download_enforces_selected_size_limit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "download"
+            with patch.object(
+                unbound_app.subprocess,
+                "run",
+                return_value=types.SimpleNamespace(returncode=0, stderr=b""),
+            ) as run_curl:
+                error = unbound_app._download_blocklist(
+                    "https://example.com/domains",
+                    str(output),
+                    12345,
+                )
+
+            self.assertIsNone(error)
+            curl_args = run_curl.call_args.args[0]
+            self.assertEqual("12345", curl_args[curl_args.index("--max-filesize") + 1])
+
+    def test_download_failure_without_stderr_is_not_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "download"
+            with patch.object(
+                unbound_app.subprocess,
+                "run",
+                return_value=types.SimpleNamespace(returncode=23, stderr=b""),
+            ):
+                error = unbound_app._download_blocklist(
+                    "https://example.com/domains",
+                    str(output),
+                    12345,
+                )
+
+            self.assertEqual("curl exited with status 23", error)
+
     def test_refresh_applies_plain_domain_list(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -458,21 +578,19 @@ class BlocklistRefreshTests(unittest.TestCase):
 
             with (
                 patch.object(
-                    unbound_app.subprocess,
-                    "run",
-                    return_value=types.SimpleNamespace(
-                        returncode=0,
-                        stdout="# OISD-style list\nads.example\ntracker.example\n",
-                        stderr="",
+                    unbound_app,
+                    "_download_blocklist",
+                    side_effect=self._download(
+                        "# OISD-style list\nads.example\ntracker.example\n"
                     ),
-                ) as run_curl,
+                ),
                 patch.object(
                     unbound_app, "run_unbound_control", return_value=("ok", True)
                 ) as reload_unbound,
             ):
                 result = unbound_app._do_blocklist_refresh()
 
-            self.assertEqual("refreshed", result["status"])
+            self.assertEqual("refreshed", result["status"], result)
             self.assertEqual(2, result["domains_blocked"])
             self.assertEqual(
                 'local-zone: "ads.example." always_refuse\n'
@@ -480,9 +598,6 @@ class BlocklistRefreshTests(unittest.TestCase):
                 (root / "blocklist.conf").read_text(),
             )
             reload_unbound.assert_called_once()
-            curl_args = run_curl.call_args.args[0]
-            self.assertIn("-fsS", curl_args)
-            self.assertIn("--max-filesize", curl_args)
 
     def test_refresh_keeps_existing_rules_when_no_source_parses(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -498,20 +613,51 @@ class BlocklistRefreshTests(unittest.TestCase):
 
             with (
                 patch.object(
-                    unbound_app.subprocess,
-                    "run",
-                    return_value=types.SimpleNamespace(
-                        returncode=0,
-                        stdout="unsupported content\n",
-                        stderr="",
-                    ),
+                    unbound_app,
+                    "_download_blocklist",
+                    side_effect=self._download("unsupported content\n"),
                 ),
                 patch.object(unbound_app, "run_unbound_control") as reload_unbound,
             ):
                 result = unbound_app._do_blocklist_refresh()
 
-            self.assertEqual("error", result["status"])
+            self.assertEqual("error", result["status"], result)
             self.assertIn("existing rules were kept", result["error"])
+            self.assertEqual(
+                'local-zone: "existing.example." always_refuse\n',
+                (root / "blocklist.conf").read_text(),
+            )
+            reload_unbound.assert_not_called()
+
+    def test_refresh_keeps_existing_rules_when_aggregate_limit_is_exceeded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "blocklists.json").write_text('["https://example.com/domains"]')
+            (root / "blocklist.conf").write_text(
+                'local-zone: "existing.example." always_refuse\n'
+            )
+            patches = self._path_patches(root)
+            for item in patches:
+                item.start()
+            self.addCleanup(lambda: [item.stop() for item in reversed(patches)])
+
+            with (
+                patch.object(
+                    unbound_app,
+                    "_download_blocklist",
+                    side_effect=self._download("new.example\n"),
+                ),
+                patch.object(
+                    unbound_app,
+                    "_blocklist_limits",
+                    return_value=(1024, 10, 1),
+                ),
+                patch.object(unbound_app, "run_unbound_control") as reload_unbound,
+            ):
+                result = unbound_app._do_blocklist_refresh()
+
+            self.assertEqual("error", result["status"], result)
+            self.assertIn("temporary-data limit", result["errors"][0]["error"])
             self.assertEqual(
                 'local-zone: "existing.example." always_refuse\n',
                 (root / "blocklist.conf").read_text(),
@@ -535,13 +681,9 @@ class BlocklistRefreshTests(unittest.TestCase):
 
             with (
                 patch.object(
-                    unbound_app.subprocess,
-                    "run",
-                    return_value=types.SimpleNamespace(
-                        returncode=0,
-                        stdout="new.example\n",
-                        stderr="",
-                    ),
+                    unbound_app,
+                    "_download_blocklist",
+                    side_effect=self._download("new.example\n"),
                 ),
                 patch.object(
                     unbound_app,
@@ -551,7 +693,7 @@ class BlocklistRefreshTests(unittest.TestCase):
             ):
                 result = unbound_app._do_blocklist_refresh()
 
-            self.assertEqual("error", result["status"])
+            self.assertEqual("error", result["status"], result)
             self.assertIn("existing rules were restored", result["error"])
             self.assertEqual(
                 'local-zone: "existing.example." always_refuse\n',

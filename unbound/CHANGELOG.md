@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.25.2-ha4] - 2026/09/08
+
+- Add an opt-in expert setting for blocklists up to 64 MiB and 3,000,000 domains, while retaining the standard 10 MiB and 500,000-domain limits by default
+- Stream blocklist downloads, parsing, external deduplication, whitelist filtering, and Unbound config generation through temporary files to keep memory use bounded
+- Enforce per-source, combined-domain, and temporary-data limits, retaining the previous active rules if processing or the reload command fails
+- Document the substantial memory and startup-time requirements of multi-million-domain feeds
+
 ## [1.25.2-ha3] - 2026/09/07
 
 - Fix blocklists containing one domain per line being silently parsed as zero domains (issue #23)
