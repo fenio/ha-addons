@@ -1,5 +1,14 @@
 # Changelog
 
+## [6.3.0.45-ha1] - 2026/09/11
+
+- Upgrade TP-Link Omada Controller from 6.2.14.11 to 6.3.0.45
+- Upgrade MongoDB without AVX from 7.0.28 to 8.0.26
+- Add the 8044/tcp device firmware upgrade HTTPS port
+- Fix initialization of empty persistent data volumes
+- Restore Home Assistant SSL certificate import
+- Use cold Home Assistant backups to capture consistent MongoDB data
+
 ## [6.2.14.11] - 2026/07/29
 
 ### Changed

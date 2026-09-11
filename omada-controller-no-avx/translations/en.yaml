@@ -10,5 +10,5 @@ configuration:
     name: Private key file
     description: Path to SSL private key file relative to /ssl directory
   enable_workaround_509:
-    name: Enable 509 workaround
-    description: Enable workaround for 509 certificate errors
+    name: Legacy 509 workaround
+    description: Obsolete compatibility option retained for existing configurations; it has no effect on Omada 6.3

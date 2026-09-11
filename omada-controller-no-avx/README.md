@@ -6,7 +6,7 @@ TP-Link Omada Controller add-on for Home Assistant, specifically built for **CPU
 
 The official Omada Controller v6.x requires MongoDB 8.x, which needs AVX CPU instructions. Many older CPUs (and some newer low-power CPUs) don't support AVX, making the standard Omada Controller unusable.
 
-This add-on uses a custom-built MongoDB 7.0 that doesn't require AVX instructions.
+This add-on uses MongoDB 8.0 compiled without AVX instructions by [rnsc/mongodb-without-avx](https://github.com/rnsc/mongodb-without-avx).
 
 ## Supported Architectures
 
@@ -19,12 +19,13 @@ This add-on uses a custom-built MongoDB 7.0 that doesn't require AVX instruction
 | `enable_hass_ssl` | Use Home Assistant SSL certificates | `false` |
 | `certfile` | SSL certificate file (relative to /ssl) | `fullchain.pem` |
 | `keyfile` | SSL private key file (relative to /ssl) | `privkey.pem` |
-| `enable_workaround_509` | Enable workaround for 509 errors | `false` |
+| `enable_workaround_509` | Obsolete compatibility option; no effect on Omada 6.3 | `false` |
 
 ## Ports
 
 | Port | Protocol | Description |
 |------|----------|-------------|
+| 8044 | TCP | Device firmware upgrade HTTPS |
 | 8088 | TCP | Management HTTP |
 | 8043 | TCP | Management HTTPS |
 | 8843 | TCP | Portal HTTPS |
@@ -48,8 +49,12 @@ This add-on uses a custom-built MongoDB 7.0 that doesn't require AVX instruction
 
 All data is stored in the add-on's persistent storage and will survive restarts and updates.
 
+## Upgrading
+
+Create a Home Assistant backup before upgrading from `6.2.14.11-ha1`. Backups stop this add-on while its MongoDB data is captured. This release upgrades MongoDB from 7.0 to 8.0 and migrates the Omada application database from 6.2 to 6.3. Direct rollback is not supported; restore the backup to return to the previous release.
+
 ## Credits
 
 - [mbentley/docker-omada-controller](https://github.com/mbentley/docker-omada-controller) - Base Docker scripts
 - [jkunczik/home-assistant-omada](https://github.com/jkunczik/home-assistant-omada) - Original HA add-on inspiration
-- [fenio/mongodb-no-avx](https://github.com/fenio/mongodb-no-avx) - MongoDB without AVX requirement
+- [rnsc/mongodb-without-avx](https://github.com/rnsc/mongodb-without-avx) - MongoDB 8 without AVX instructions

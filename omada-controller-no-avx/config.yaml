@@ -1,6 +1,6 @@
 name: Omada Controller (No AVX)
 description: TP-Link Omada Controller for CPUs without AVX support
-version: "6.2.14.11-ha1"
+version: "6.3.0.45-ha1"
 slug: omada_controller_no_avx
 url: https://github.com/fenio/omada-controller-no-avx
 image: ghcr.io/fenio/omada-controller-no-avx
@@ -9,6 +9,7 @@ startup: application
 arch:
   - amd64
 init: false
+backup: cold
 map:
   - ssl:ro
 options:
@@ -22,6 +23,7 @@ schema:
   keyfile: str
   enable_workaround_509: bool
 ports:
+  8044/tcp: 8044
   8088/tcp: 8088
   8043/tcp: 8043
   8843/tcp: 8843
@@ -36,6 +38,7 @@ ports:
   29816/tcp: 29816
   29817/tcp: 29817
 ports_description:
+  8044/tcp: Device firmware upgrade HTTPS port
   8088/tcp: Management HTTP port
   8043/tcp: Management HTTPS port
   8843/tcp: Portal HTTPS port

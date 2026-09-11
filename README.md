@@ -8,9 +8,9 @@ Home Assistant add-ons repository.
 
 ### [Omada Controller (No AVX)](./omada-controller-no-avx)
 
-![Version](https://img.shields.io/badge/version-6.2.14.11--ha1-blue.svg)
+![Version](https://img.shields.io/badge/version-6.3.0.45--ha1-blue.svg)
 
-TP-Link Omada Controller for CPUs without AVX support. The standard Omada Controller v6.x uses MongoDB which requires AVX CPU instructions, making it incompatible with older/low-power CPUs (Intel Atom, Celeron, older AMD, etc.). This add-on uses a custom-built MongoDB 7.0 without AVX requirements.
+TP-Link Omada Controller for CPUs without AVX support. The standard Omada Controller v6.x uses MongoDB which requires AVX CPU instructions, making it incompatible with older/low-power CPUs (Intel Atom, Celeron, older AMD, etc.). This add-on uses MongoDB 8.0 compiled without AVX instructions.
 
 ### [Unbound DNS](./unbound)
 
