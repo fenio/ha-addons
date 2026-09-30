@@ -1,4 +1,13 @@
 # Changelog
+## [1.12.3-ha1] - 2026/09/30
+
+- Upgrade Omni 1.11.0 to 1.12.3
+- Add the administrator resource browser for inspecting, searching, and exporting readable Omni and Talos resources
+- Improve maintenance-mode installs and upgrades, Talos version selection, Kubernetes manifest reporting, and SQLite reliability
+- Include fixes for installation-media downloads, canceled upgrades, CLI context handling, KubeSpan status, and cluster-list styling
+- Verify downloaded Omni binaries against the upstream SHA-256 checksums
+- No add-on config schema or persistent data migration changes; existing settings and data continue to be used as-is
+
 ## [1.11.0-ha1] - 2026/09/07
 
 - Upgrade Omni 1.10.6 to 1.11.0
