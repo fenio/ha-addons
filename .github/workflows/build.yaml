@@ -14,7 +14,7 @@ jobs:
       matrix:
         addon: [unbound]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run Unbound unit tests
         run: python3 -B -m unittest discover -s unbound/tests -p 'test_*.py'
